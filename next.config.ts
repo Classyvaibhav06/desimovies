@@ -5,7 +5,8 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "image.tmdb.org"
+        hostname: "image.tmdb.org",
+        pathname: "/t/p/**"
       }
     ]
   }

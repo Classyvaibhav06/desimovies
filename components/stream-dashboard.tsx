@@ -13,9 +13,9 @@ function buildEmbedUrl(tmdbId: number): string {
   return `https://www.vidking.net/embed/movie/${tmdbId}`;
 }
 
-function posterUrl(path: string | null): string {
+function posterUrl(path: string | null): string | null {
   if (!path) {
-    return "https://placehold.co/400x600/0a1b2a/e8f3fb?text=No+Poster";
+    return null;
   }
 
   return `https://image.tmdb.org/t/p/w500${path}`;
@@ -28,6 +28,7 @@ export default function StreamDashboard({
   const [selectedMovieId, setSelectedMovieId] =
     useState<number>(fallbackMovieId);
   const [manualId, setManualId] = useState<string>(String(fallbackMovieId));
+  const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set());
 
   const selectedEmbedUrl = useMemo(
     () => buildEmbedUrl(selectedMovieId),
@@ -43,6 +44,10 @@ export default function StreamDashboard({
     }
 
     setSelectedMovieId(Number(value));
+  }
+
+  function handleImageLoad(movieId: number) {
+    setLoadedImages((prev) => new Set(prev).add(movieId));
   }
 
   return (
@@ -141,14 +146,33 @@ export default function StreamDashboard({
                     }}
                     className="group overflow-hidden rounded-2xl border border-white/10 bg-slate-950/70 text-left transition hover:-translate-y-1 hover:border-saffron/70"
                   >
-                    <div className="relative aspect-[2/3] w-full overflow-hidden">
-                      <Image
-                        src={posterUrl(movie.posterPath)}
-                        alt={movie.title}
-                        fill
-                        sizes="(max-width: 768px) 50vw, 200px"
-                        className="object-cover transition duration-300 group-hover:scale-105"
-                      />
+                    <div className="relative aspect-[2/3] w-full overflow-hidden bg-slate-900">
+                      {posterUrl(movie.posterPath) ? (
+                        <>
+                          {!loadedImages.has(movie.id) && (
+                            <div className="absolute inset-0 bg-gradient-to-r from-slate-800 to-slate-700 animate-pulse" />
+                          )}
+                          <Image
+                            src={posterUrl(movie.posterPath)!}
+                            alt={movie.title}
+                            fill
+                            sizes="(max-width: 768px) 50vw, 200px"
+                            onLoad={() => handleImageLoad(movie.id)}
+                            className={`object-cover transition-opacity duration-500 group-hover:scale-105 ${
+                              loadedImages.has(movie.id)
+                                ? "opacity-100"
+                                : "opacity-0"
+                            }`}
+                          />
+                        </>
+                      ) : (
+                        <div className="h-full w-full bg-gradient-to-br from-saffron/20 to-coral/20 flex items-center justify-center transition duration-300 group-hover:from-saffron/30 group-hover:to-coral/30">
+                          <div className="text-center text-xs text-slate-400">
+                            <p>🎬</p>
+                            <p>No Poster</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div className="space-y-1 p-3">
                       <p className="line-clamp-2 text-sm font-semibold text-white">

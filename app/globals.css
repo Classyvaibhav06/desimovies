@@ -22,3 +22,18 @@ body {
     linear-gradient(120deg, #04111b 0%, #061a2a 45%, #0a2233 100%);
   color: #e8f3fb;
 }
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.shimmer {
+  animation: shimmer 2s infinite;
+  background: linear-gradient(to right, #1a1a1a 0%, #2a2a2a 50%, #1a1a1a 100%);
+  background-size: 1000px 100%;
+}

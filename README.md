@@ -19,13 +19,17 @@ It fetches category-wise movie data from TMDB and streams selected movies via Vi
 ## Setup
 
 1. Create `.env.local` in the project root.
-2. Add your key:
+2. Add one of these TMDB auth options (token recommended):
 
 ```env
+TMDB_READ_ACCESS_TOKEN=your_tmdb_read_access_token_here
+
+# Optional fallback
 TMDB_API_KEY=your_tmdb_api_key_here
 ```
 
 You can copy from `.env.local.example`.
+After updating env values, restart the dev server.
 
 ## Run
 

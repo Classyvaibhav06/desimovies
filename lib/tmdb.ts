@@ -40,14 +40,63 @@ const CATEGORY_CONFIGS: Array<{ key: string; label: string; endpoint: string }> 
   }
 ];
 
-function getTmdbApiKey(): string {
-  const key = process.env.TMDB_API_KEY;
+const FALLBACK_MOVIES_BY_CATEGORY: Record<
+  string,
+  Array<{ id: number; title: string; releaseDate: string; rating: number }>
+> = {
+  trending: [
+    { id: 1078605, title: "Weapons", releaseDate: "2025-01-01", rating: 7.2 },
+    { id: 603, title: "The Matrix", releaseDate: "1999-03-30", rating: 8.7 },
+    { id: 155, title: "The Dark Knight", releaseDate: "2008-07-16", rating: 9.0 }
+  ],
+  popular: [
+    { id: 27205, title: "Inception", releaseDate: "2010-07-15", rating: 8.8 },
+    { id: 299536, title: "Infinity War", releaseDate: "2018-04-25", rating: 8.4 },
+    { id: 157336, title: "Interstellar", releaseDate: "2014-11-05", rating: 8.7 }
+  ],
+  "top-rated": [
+    { id: 238, title: "The Godfather", releaseDate: "1972-03-14", rating: 9.2 },
+    { id: 278, title: "The Shawshank Redemption", releaseDate: "1994-09-23", rating: 9.3 },
+    { id: 240, title: "The Godfather Part II", releaseDate: "1974-12-20", rating: 9.0 }
+  ],
+  "in-cinemas": [
+    { id: 346698, title: "Barbie", releaseDate: "2023-07-19", rating: 7.1 },
+    { id: 872585, title: "Oppenheimer", releaseDate: "2023-07-19", rating: 8.1 },
+    { id: 438631, title: "Dune", releaseDate: "2021-09-15", rating: 7.8 }
+  ],
+  "desi-picks": [
+    { id: 127538, title: "Kabir Singh", releaseDate: "2019-06-21", rating: 7.1 },
+    { id: 20453, title: "3 Idiots", releaseDate: "2009-12-23", rating: 8.0 },
+    { id: 19404, title: "Dilwale Dulhania Le Jayenge", releaseDate: "1995-10-20", rating: 8.5 }
+  ]
+};
 
-  if (!key) {
-    throw new Error("TMDB_API_KEY is not set in your environment.");
+type TmdbAuthConfig = {
+  headers: HeadersInit;
+  appendApiKeyToUrl: boolean;
+};
+
+function getTmdbAuthConfig(): TmdbAuthConfig {
+  const readAccessToken = process.env.TMDB_READ_ACCESS_TOKEN?.trim();
+  const apiKey = process.env.TMDB_API_KEY?.trim();
+
+  if (readAccessToken) {
+    return {
+      headers: {
+        Authorization: `Bearer ${readAccessToken}`
+      },
+      appendApiKeyToUrl: false
+    };
   }
 
-  return key;
+  if (apiKey) {
+    return {
+      headers: {},
+      appendApiKeyToUrl: true
+    };
+  }
+
+  throw new Error("Set TMDB_READ_ACCESS_TOKEN or TMDB_API_KEY in your environment.");
 }
 
 function toMovieSummary(movie: TmdbResponse["results"][number]): MovieSummary {
@@ -62,12 +111,32 @@ function toMovieSummary(movie: TmdbResponse["results"][number]): MovieSummary {
   };
 }
 
+function getFallbackMovies(categoryKey: string): MovieSummary[] {
+  const fallback = FALLBACK_MOVIES_BY_CATEGORY[categoryKey] ?? [];
+
+  return fallback.map((movie) => ({
+    id: movie.id,
+    title: movie.title,
+    overview: "TMDB is currently unavailable. Using fallback picks.",
+    posterPath: null,
+    backdropPath: null,
+    releaseDate: movie.releaseDate,
+    rating: movie.rating
+  }));
+}
+
 async function fetchTmdb(endpoint: string): Promise<MovieSummary[]> {
-  const apiKey = getTmdbApiKey();
-  const separator = endpoint.includes("?") ? "&" : "?";
-  const url = `${TMDB_BASE_URL}${endpoint}${separator}api_key=${apiKey}`;
+  const authConfig = getTmdbAuthConfig();
+  let url = `${TMDB_BASE_URL}${endpoint}`;
+
+  if (authConfig.appendApiKeyToUrl) {
+    const apiKey = process.env.TMDB_API_KEY?.trim();
+    const separator = endpoint.includes("?") ? "&" : "?";
+    url = `${url}${separator}api_key=${apiKey}`;
+  }
 
   const response = await fetch(url, {
+    headers: authConfig.headers,
     next: { revalidate: 1800 }
   });
 
@@ -87,13 +156,13 @@ export async function getCategoryMovies(): Promise<CategoryWithMovies[]> {
         return {
           key: category.key,
           label: category.label,
-          movies
+          movies: movies.length > 0 ? movies : getFallbackMovies(category.key)
         };
       } catch {
         return {
           key: category.key,
           label: category.label,
-          movies: []
+          movies: getFallbackMovies(category.key)
         };
       }
     })
