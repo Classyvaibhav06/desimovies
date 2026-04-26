@@ -12,6 +12,7 @@ It fetches category-wise movie data from TMDB and streams selected movies via Vi
 
 - Next.js + TypeScript + Tailwind setup
 - TMDB-powered category rails (Trending, Popular, Top Rated, In Cinemas, Desi Picks)
+- AI-assisted search: resolves TMDB IDs using NVIDIA OpenAI-compatible API on submit
 - Click any movie card to load player
 - Manual TMDB ID input for direct streaming
 - Mobile-friendly responsive layout
@@ -19,13 +20,20 @@ It fetches category-wise movie data from TMDB and streams selected movies via Vi
 ## Setup
 
 1. Create `.env.local` in the project root.
-2. Add one of these TMDB auth options (token recommended):
+2. Add the required and optional keys:
 
 ```env
 TMDB_READ_ACCESS_TOKEN=your_tmdb_read_access_token_here
-
-# Optional fallback
+# Optional fallback (v3 auth)
 TMDB_API_KEY=your_tmdb_api_key_here
+
+# Optional poster fallback for movie entries missing TMDB poster_path
+FANART_API_KEY=your_fanart_tv_api_key_here
+
+# Optional AI-based TMDB ID resolver (used for submit search)
+NVIDIA_API_KEY=your_nvidia_api_key_here
+# Optional model override
+NVIDIA_MODEL=openai/gpt-oss-120b
 ```
 
 You can copy from `.env.local.example`.
