@@ -42,32 +42,32 @@ const CATEGORY_CONFIGS: Array<{ key: string; label: string; endpoint: string }> 
 
 const FALLBACK_MOVIES_BY_CATEGORY: Record<
   string,
-  Array<{ id: number; title: string; releaseDate: string; rating: number }>
+  Array<{ id: number; title: string; posterPath: string | null; releaseDate: string; rating: number }>
 > = {
   trending: [
-    { id: 1078605, title: "Weapons", releaseDate: "2025-01-01", rating: 7.2 },
-    { id: 603, title: "The Matrix", releaseDate: "1999-03-30", rating: 8.7 },
-    { id: 155, title: "The Dark Knight", releaseDate: "2008-07-16", rating: 9.0 }
+    { id: 1078605, title: "Weapons", posterPath: null, releaseDate: "2025-01-01", rating: 7.2 },
+    { id: 603, title: "The Matrix", posterPath: null, releaseDate: "1999-03-30", rating: 8.7 },
+    { id: 155, title: "The Dark Knight", posterPath: null, releaseDate: "2008-07-16", rating: 9.0 }
   ],
   popular: [
-    { id: 27205, title: "Inception", releaseDate: "2010-07-15", rating: 8.8 },
-    { id: 299536, title: "Infinity War", releaseDate: "2018-04-25", rating: 8.4 },
-    { id: 157336, title: "Interstellar", releaseDate: "2014-11-05", rating: 8.7 }
+    { id: 27205, title: "Inception", posterPath: null, releaseDate: "2010-07-15", rating: 8.8 },
+    { id: 299536, title: "Infinity War", posterPath: null, releaseDate: "2018-04-25", rating: 8.4 },
+    { id: 157336, title: "Interstellar", posterPath: null, releaseDate: "2014-11-05", rating: 8.7 }
   ],
   "top-rated": [
-    { id: 238, title: "The Godfather", releaseDate: "1972-03-14", rating: 9.2 },
-    { id: 278, title: "The Shawshank Redemption", releaseDate: "1994-09-23", rating: 9.3 },
-    { id: 240, title: "The Godfather Part II", releaseDate: "1974-12-20", rating: 9.0 }
+    { id: 238, title: "The Godfather", posterPath: null, releaseDate: "1972-03-14", rating: 9.2 },
+    { id: 278, title: "The Shawshank Redemption", posterPath: null, releaseDate: "1994-09-23", rating: 9.3 },
+    { id: 240, title: "The Godfather Part II", posterPath: null, releaseDate: "1974-12-20", rating: 9.0 }
   ],
   "in-cinemas": [
-    { id: 346698, title: "Barbie", releaseDate: "2023-07-19", rating: 7.1 },
-    { id: 872585, title: "Oppenheimer", releaseDate: "2023-07-19", rating: 8.1 },
-    { id: 438631, title: "Dune", releaseDate: "2021-09-15", rating: 7.8 }
+    { id: 346698, title: "Barbie", posterPath: null, releaseDate: "2023-07-19", rating: 7.1 },
+    { id: 872585, title: "Oppenheimer", posterPath: null, releaseDate: "2023-07-19", rating: 8.1 },
+    { id: 438631, title: "Dune", posterPath: null, releaseDate: "2021-09-15", rating: 7.8 }
   ],
   "desi-picks": [
-    { id: 127538, title: "Kabir Singh", releaseDate: "2019-06-21", rating: 7.1 },
-    { id: 20453, title: "3 Idiots", releaseDate: "2009-12-23", rating: 8.0 },
-    { id: 19404, title: "Dilwale Dulhania Le Jayenge", releaseDate: "1995-10-20", rating: 8.5 }
+    { id: 127538, title: "Kabir Singh", posterPath: null, releaseDate: "2019-06-21", rating: 7.1 },
+    { id: 20453, title: "3 Idiots", posterPath: null, releaseDate: "2009-12-23", rating: 8.0 },
+    { id: 19404, title: "Dilwale Dulhania Le Jayenge", posterPath: null, releaseDate: "1995-10-20", rating: 8.5 }
   ]
 };
 
