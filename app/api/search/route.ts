@@ -149,6 +149,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get("q")?.trim() ?? "";
   const rawType = searchParams.get("type");
+  const lang = searchParams.get("lang") ?? "en-US";
   const mediaType = rawType === "tv" ? "tv" : "movie";
   const useCloseMatchFilter =
     searchParams.get("closeMatch") === "1" || searchParams.get("startsWith") === "1";
@@ -159,7 +160,7 @@ export async function GET(request: Request) {
 
   try {
     const shouldUseAiIdLookup = !useCloseMatchFilter;
-    let results = await searchMediaByTitle(query, mediaType);
+    let results = await searchMediaByTitle(query, mediaType, lang);
 
     if (shouldUseAiIdLookup) {
       try {

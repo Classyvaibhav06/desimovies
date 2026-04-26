@@ -2,7 +2,20 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CategoryWithMovies, SearchResult } from "@/lib/tmdb";
+import type { CategoryWithMovies, SearchResult, MovieSummary } from "@/lib/tmdb";
+import { 
+  Play, 
+  Info, 
+  Search as SearchIcon, 
+  Bell, 
+  User, 
+  X, 
+  ChevronRight, 
+  ChevronLeft,
+  Volume2,
+  VolumeX,
+  Maximize
+} from "lucide-react";
 
 type StreamDashboardProps = {
   categories: CategoryWithMovies[];
@@ -10,6 +23,24 @@ type StreamDashboardProps = {
 };
 
 type MediaType = "movie" | "tv";
+
+const CATEGORY_CONFIGS: Array<{ key: string; label: string; endpoint: string; mediaType: "movie" | "tv" }> = [
+  { key: "trending", label: "Trending Now", endpoint: "/trending/all/day", mediaType: "movie" },
+  { key: "popular-movies", label: "Popular Movies", endpoint: "/movie/popular", mediaType: "movie" },
+  { key: "top-10-movies", label: "Top 10 Movies Today", endpoint: "/movie/popular", mediaType: "movie" },
+  { key: "top-rated", label: "Top Rated Movies", endpoint: "/movie/top_rated", mediaType: "movie" },
+  { key: "popular-tv", label: "Popular TV Shows", endpoint: "/tv/popular", mediaType: "tv" },
+  { key: "top-10-tv", label: "Top 10 TV Shows Today", endpoint: "/tv/popular", mediaType: "tv" },
+  { key: "new-movies", label: "New on 1FLEX", endpoint: "/movie/now_playing", mediaType: "movie" },
+  { key: "new-tv", label: "New TV Series", endpoint: "/tv/on_the_air", mediaType: "tv" },
+  { key: "upcoming", label: "Coming Soon", endpoint: "/movie/upcoming", mediaType: "movie" },
+  {
+    key: "desi-picks",
+    label: "Desi Picks",
+    endpoint: "/discover/movie?with_origin_country=IN&sort_by=popularity.desc",
+    mediaType: "movie"
+  }
+];
 
 function buildEmbedUrl(
   mediaType: MediaType,
@@ -20,542 +51,692 @@ function buildEmbedUrl(
   if (mediaType === "tv") {
     return `https://www.vidking.net/embed/tv/${tmdbId}/${season}/${episode}`;
   }
-
   return `https://www.vidking.net/embed/movie/${tmdbId}`;
 }
 
 function posterUrl(path: string | null): string | null {
-  if (!path) {
-    return null;
-  }
-
-  if (path.startsWith("http://") || path.startsWith("https://")) {
-    return path;
-  }
-
+  if (!path) return null;
+  if (path.startsWith("http")) return path;
   return `https://image.tmdb.org/t/p/w500${path}`;
+}
+
+function backdropUrl(path: string | null): string | null {
+  if (!path) return null;
+  if (path.startsWith("http")) return path;
+  return `https://image.tmdb.org/t/p/original${path}`;
 }
 
 export default function StreamDashboard({
   categories,
   fallbackMovieId,
 }: StreamDashboardProps) {
-  const previewAbortRef = useRef<AbortController | null>(null);
-  const [selectedMediaType, setSelectedMediaType] =
-    useState<MediaType>("movie");
-  const [selectedMovieId, setSelectedMovieId] =
-    useState<number>(fallbackMovieId);
-  const [season, setSeason] = useState<string>("1");
-  const [episode, setEpisode] = useState<string>("1");
-  const [manualId, setManualId] = useState<string>(String(fallbackMovieId));
-  const [searchQuery, setSearchQuery] = useState<string>("");
-  const [searchType, setSearchType] = useState<MediaType>("movie");
+  const [selectedMediaType, setSelectedMediaType] = useState<MediaType>("movie");
+  const [selectedMovieId, setSelectedMovieId] = useState<number>(fallbackMovieId);
+  const [season, setSeason] = useState<number>(1);
+  const [episode, setEpisode] = useState<number>(1);
+  const [selectedMovieDetails, setSelectedMovieDetails] = useState<SearchResult | null>(null);
+  
+  const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [searchMessage, setSearchMessage] = useState<string>("");
-  const [isSearching, setIsSearching] = useState<boolean>(false);
-  const [isPreviewLoading, setIsPreviewLoading] = useState<boolean>(false);
-  const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set());
-  const [failedImages, setFailedImages] = useState<Set<number>>(new Set());
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isNavbarBlack, setIsNavbarBlack] = useState(false);
+  const [isPlayerOpen, setIsPlayerOpen] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const [activeSection, setActiveSection] = useState<"home" | "tv" | "movies" | "new-popular" | "my-list">("home");
+  const [myList, setMyList] = useState<(MovieSummary | SearchResult)[]>([]);
+  const [language, setLanguage] = useState("en-US");
+  const [detailMovie, setDetailMovie] = useState<MovieSummary | SearchResult | null>(null);
+  const [detailData, setDetailData] = useState<SearchResult | null>(null);
 
-  const parsedSeason = Number.parseInt(season, 10);
-  const parsedEpisode = Number.parseInt(episode, 10);
-  const safeSeason =
-    Number.isFinite(parsedSeason) && parsedSeason > 0 ? parsedSeason : 1;
-  const safeEpisode =
-    Number.isFinite(parsedEpisode) && parsedEpisode > 0 ? parsedEpisode : 1;
-
-  const selectedEmbedUrl = useMemo(
-    () =>
-      buildEmbedUrl(
-        selectedMediaType,
-        selectedMovieId,
-        safeSeason,
-        safeEpisode,
-      ),
-    [selectedMediaType, selectedMovieId, safeSeason, safeEpisode],
-  );
-
-  function onSubmitManualId(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const value = manualId.trim();
-
-    if (!/^\d+$/.test(value)) {
-      return;
-    }
-
-    setSelectedMovieId(Number(value));
-  }
-
-  async function fetchSearchResults(
-    query: string,
-    mediaType: MediaType,
-    closeMatchOnly: boolean,
-    signal?: AbortSignal,
-  ): Promise<{ results: SearchResult[]; message: string }> {
-    const response = await fetch(
-      `/api/search?q=${encodeURIComponent(query)}&type=${mediaType}&closeMatch=${closeMatchOnly ? "1" : "0"}`,
-      { signal },
-    );
-    const data = (await response.json()) as {
-      results?: SearchResult[];
-      message?: string;
-    };
-
-    return {
-      results: data.results ?? [],
-      message: data.message ?? "",
-    };
-  }
-
+  // Auto-scroll navbar effect
   useEffect(() => {
-    const query = searchQuery.trim();
+    const handleScroll = () => {
+      setIsNavbarBlack(window.scrollY > 50);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
-    if (query.length === 0) {
-      if (previewAbortRef.current) {
-        previewAbortRef.current.abort();
-      }
-
-      setSearchResults([]);
-      setSearchMessage("");
-      setIsPreviewLoading(false);
-      return;
-    }
-
-    if (query.length < 2) {
-      if (previewAbortRef.current) {
-        previewAbortRef.current.abort();
-      }
-
-      setSearchResults([]);
-      setSearchMessage("Type at least 2 characters.");
-      setIsPreviewLoading(false);
-      return;
-    }
-
-    const debounceId = setTimeout(async () => {
-      if (previewAbortRef.current) {
-        previewAbortRef.current.abort();
-      }
-
-      const controller = new AbortController();
-      previewAbortRef.current = controller;
-
-      setIsPreviewLoading(true);
-      setSearchMessage("");
-
+  // Fetch movie details when ID changes
+  useEffect(() => {
+    async function fetchDetails() {
       try {
-        const data = await fetchSearchResults(
-          query,
-          searchType,
-          true,
-          controller.signal,
-        );
-
-        setSearchResults(data.results);
-
-        if (data.message) {
-          setSearchMessage(data.message);
-        } else if (data.results.length === 0) {
-          setSearchMessage(
-            searchType === "tv"
-              ? "No close web series matches found."
-              : "No close movie matches found.",
-          );
+        const response = await fetch(`/api/movies/details?id=${selectedMovieId}&type=${selectedMediaType}`);
+        if (response.ok) {
+          const data = await response.json();
+          setSelectedMovieDetails(data);
         }
       } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") {
-          return;
-        }
-
-        setSearchResults([]);
-        setSearchMessage("Preview timed out. Keep typing or press Search.");
-      } finally {
-        setIsPreviewLoading(false);
+        console.error("Failed to fetch details:", error);
       }
-    }, 250);
+    }
+    fetchDetails();
+  }, [selectedMovieId, selectedMediaType]);
 
-    return () => {
-      clearTimeout(debounceId);
-    };
-  }, [searchQuery, searchType]);
+  const embedUrl = useMemo(
+    () => buildEmbedUrl(selectedMediaType, selectedMovieId, season, episode),
+    [selectedMediaType, selectedMovieId, season, episode]
+  );
 
-  async function onSubmitSearch(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const query = searchQuery.trim();
+  const heroMovie = useMemo(() => {
+    const list = activeSection === "my-list" ? myList :
+                 activeSection === "home" ? categories.flatMap(c => c.movies) : 
+                 activeSection === "tv" ? categories.filter(c => c.mediaType === "tv").flatMap(c => c.movies) :
+                 activeSection === "movies" ? categories.filter(c => c.mediaType === "movie").flatMap(c => c.movies) :
+                 categories.filter(c => ["new-movies", "new-tv", "upcoming", "trending"].includes(c.key)).flatMap(c => c.movies);
 
-    if (query.length < 2) {
+    // Try to find "The Boys" or a prominent item in the list
+    const featured = list.find(m => m.title.toLowerCase().includes("boys") || m.title.toLowerCase().includes("inception") || m.title.toLowerCase().includes("dark"));
+    if (featured) return featured;
+    return list[0];
+  }, [categories, activeSection, myList]);
+
+  async function handleSearch(q: string) {
+    setSearchQuery(q);
+    if (q.length < 2) {
       setSearchResults([]);
-      setSearchMessage("Type at least 2 characters.");
       return;
     }
-
-    if (previewAbortRef.current) {
-      previewAbortRef.current.abort();
-    }
-
-    setIsSearching(true);
-    setIsPreviewLoading(false);
-    setSearchMessage("");
-    setSearchResults([]);
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-
     try {
-      const data = await fetchSearchResults(
-        query,
-        searchType,
-        false,
-        controller.signal,
-      );
-      const results = data.results;
-      setSearchResults(results);
+      // Search for both movies and TV to ensure everything is found
+      const [moviesRes, tvRes] = await Promise.all([
+        fetch(`/api/search?q=${encodeURIComponent(q)}&type=movie&lang=${language}`),
+        fetch(`/api/search?q=${encodeURIComponent(q)}&type=tv&lang=${language}`)
+      ]);
+      
+      const [moviesData, tvData] = await Promise.all([
+        moviesRes.json(),
+        tvRes.json()
+      ]);
 
-      if (data.message) {
-        setSearchMessage(data.message);
-      } else if (results.length === 0) {
-        setSearchMessage(
-          searchType === "tv"
-            ? "No web series found for that name."
-            : "No movies found for that name.",
-        );
-      }
-    } catch {
-      setSearchResults([]);
-      setSearchMessage("Search timed out. Please try again.");
-    } finally {
-      clearTimeout(timeoutId);
-      setIsSearching(false);
+      const combined = [...(moviesData.results || []), ...(tvData.results || [])];
+      // Basic deduplication and sorting by rating/relevance
+      const uniqueResults = combined.filter((v, i, a) => a.findIndex(t => t.id === v.id && t.mediaType === v.mediaType) === i);
+      
+      setSearchResults(uniqueResults.slice(0, 20));
+    } catch (e) {
+      console.error(e);
     }
   }
 
-  function pickMovie(movieId: number, mediaType: MediaType = "movie") {
-    setSelectedMediaType(mediaType);
-    setSelectedMovieId(movieId);
-    setManualId(String(movieId));
+  function playMovie(movie: MovieSummary | SearchResult) {
+    setSelectedMovieId(movie.id);
+    setSelectedMediaType(movie.mediaType);
+    setSeason(1);
+    setEpisode(1);
+    setIsPlayerOpen(true);
+    setDetailMovie(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function handleImageLoad(movieId: number) {
-    setLoadedImages((prev) => new Set(prev).add(movieId));
+  async function openDetail(movie: MovieSummary | SearchResult) {
+    setDetailMovie(movie);
+    setDetailData(null);
+    try {
+      const res = await fetch(`/api/movies/details?id=${movie.id}&type=${movie.mediaType}`);
+      if (res.ok) setDetailData(await res.json());
+    } catch { /* use basic info */ }
   }
 
-  function handleImageError(movieId: number) {
-    console.warn(`Failed to load poster for movie ID: ${movieId}`);
-    setFailedImages((prev) => new Set(prev).add(movieId));
+  const filteredCategories = useMemo(() => {
+    if (activeSection === "my-list") return [{ key: "my-list", label: "My List", movies: myList, mediaType: "movie" }];
+    if (activeSection === "home") return categories;
+    if (activeSection === "tv") return categories.filter(c => c.mediaType === "tv");
+    if (activeSection === "movies") return categories.filter(c => c.mediaType === "movie");
+    if (activeSection === "new-popular") return categories.filter(c => ["new-movies", "new-tv", "upcoming", "trending"].includes(c.key));
+    return categories;
+  }, [categories, activeSection, myList]);
+
+  function toggleMyList(movie: MovieSummary | SearchResult) {
+    setMyList(prev => {
+      const exists = prev.some(m => m.id === movie.id && m.mediaType === movie.mediaType);
+      return exists ? prev.filter(m => !(m.id === movie.id && m.mediaType === movie.mediaType)) : [movie, ...prev];
+    });
+  }
+
+  function isInMyList(movie: MovieSummary | SearchResult) {
+    return myList.some(m => m.id === movie.id && m.mediaType === movie.mediaType);
   }
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-[1320px] px-4 pb-10 pt-8 md:px-6">
-      <header className="mb-6 rounded-3xl border border-white/20 bg-white/5 p-5 backdrop-blur-md">
-        <p className="text-sm uppercase tracking-[0.3em] text-saffron/90">
-          Movie Streaming Platform
-        </p>
-        <h1 className="font-[var(--font-heading)] text-5xl leading-none tracking-[0.08em] text-saffron md:text-7xl">
-          DESI MOVIES
-        </h1>
-        <p className="mt-2 max-w-2xl text-slate-300">
-          Category-wise discovery from TMDB. Click any movie card to stream with
-          VidKing embed.
-        </p>
-      </header>
-
-      <section className="mb-8 grid gap-4 lg:grid-cols-[320px_1fr]">
-        <div className="rounded-3xl border border-white/15 bg-ink/70 p-4 shadow-glow backdrop-blur-xl">
-          <h2 className="mb-3 text-xl font-semibold text-white">
-            Load by TMDB ID
-          </h2>
-          <div className="mb-3 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setSelectedMediaType("movie")}
-              className={`h-10 rounded-lg border text-sm font-semibold transition ${
-                selectedMediaType === "movie"
-                  ? "border-saffron/70 bg-saffron/20 text-saffron"
-                  : "border-white/15 bg-slate-950/40 text-slate-300 hover:border-saffron/40"
-              }`}
+    <div className="relative min-h-screen bg-[#141414]">
+      {/* Navbar */}
+      <nav className={`fixed top-0 z-50 flex w-full items-center justify-between px-4 py-4 transition-colors duration-300 md:px-12 ${(isNavbarBlack || isPlayerOpen) ? 'bg-[#141414]' : 'bg-transparent bg-gradient-to-b from-black/70 to-transparent'}`}>
+        <div className="flex items-center gap-8">
+          <div className="text-3xl font-black tracking-tighter text-[#E50914]">1FLEX</div>
+          <div className="hidden items-center gap-5 text-sm font-medium text-gray-200 lg:flex">
+            <button 
+              onClick={() => { setActiveSection("home"); setIsPlayerOpen(false); }}
+              className={`transition-colors hover:text-gray-300 ${activeSection === "home" ? "text-white font-bold" : "text-gray-400"}`}
             >
-              Movie
+              Home
             </button>
-            <button
-              type="button"
-              onClick={() => setSelectedMediaType("tv")}
-              className={`h-10 rounded-lg border text-sm font-semibold transition ${
-                selectedMediaType === "tv"
-                  ? "border-saffron/70 bg-saffron/20 text-saffron"
-                  : "border-white/15 bg-slate-950/40 text-slate-300 hover:border-saffron/40"
-              }`}
+            <button 
+              onClick={() => { setActiveSection("tv"); setIsPlayerOpen(false); }}
+              className={`transition-colors hover:text-gray-300 ${activeSection === "tv" ? "text-white font-bold" : "text-gray-400"}`}
             >
-              TV / Web Series
+              TV Shows
             </button>
+            <button 
+              onClick={() => { setActiveSection("movies"); setIsPlayerOpen(false); }}
+              className={`transition-colors hover:text-gray-300 ${activeSection === "movies" ? "text-white font-bold" : "text-gray-400"}`}
+            >
+              Movies
+            </button>
+            <button 
+              onClick={() => { setActiveSection("new-popular"); setIsPlayerOpen(false); }}
+              className={`transition-colors hover:text-gray-300 ${activeSection === "new-popular" ? "text-white font-bold" : "text-gray-400"}`}
+            >New &amp; Popular</button>
+            <button 
+              onClick={() => { setActiveSection("my-list"); setIsPlayerOpen(false); }}
+              className={`transition-colors hover:text-gray-300 ${activeSection === "my-list" ? "text-white font-bold" : "text-gray-400"}`}
+            >My List {myList.length > 0 && <span className="ml-1 rounded-full bg-red-600 px-1.5 py-0.5 text-[9px] font-bold">{myList.length}</span>}</button>
           </div>
-          <form onSubmit={onSubmitManualId} className="space-y-3">
-            <label htmlFor="tmdb-id" className="text-sm text-slate-300">
-              Custom TMDB {selectedMediaType === "tv" ? "Series" : "Movie"} ID
-            </label>
-            <input
-              id="tmdb-id"
-              value={manualId}
-              onChange={(event) => setManualId(event.target.value)}
-              className="h-11 w-full rounded-xl border border-white/20 bg-slate-950/70 px-3 text-white outline-none ring-saffron transition focus:ring-2"
-              placeholder="e.g. 1078605"
-              inputMode="numeric"
-            />
-            {selectedMediaType === "tv" ? (
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label htmlFor="season" className="text-xs text-slate-300">
-                    Season
-                  </label>
-                  <input
-                    id="season"
-                    value={season}
-                    onChange={(event) => setSeason(event.target.value)}
-                    className="mt-1 h-10 w-full rounded-lg border border-white/20 bg-slate-950/70 px-3 text-white outline-none ring-saffron transition focus:ring-2"
-                    inputMode="numeric"
-                    placeholder="1"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="episode" className="text-xs text-slate-300">
-                    Episode
-                  </label>
-                  <input
-                    id="episode"
-                    value={episode}
-                    onChange={(event) => setEpisode(event.target.value)}
-                    className="mt-1 h-10 w-full rounded-lg border border-white/20 bg-slate-950/70 px-3 text-white outline-none ring-saffron transition focus:ring-2"
-                    inputMode="numeric"
-                    placeholder="1"
-                  />
-                </div>
-              </div>
-            ) : null}
-            <button
-              type="submit"
-              className="h-11 w-full rounded-xl bg-gradient-to-r from-saffron to-coral font-semibold text-ink transition hover:brightness-110"
-            >
-              {selectedMediaType === "tv" ? "Play Episode" : "Play Movie"}
-            </button>
-          </form>
+        </div>
 
-          <div className="mt-5 border-t border-white/10 pt-4">
-            <h3 className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">
-              Search by Name
-            </h3>
-            <div className="mb-3 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setSearchType("movie")}
-                className={`h-9 rounded-lg border text-xs font-semibold uppercase tracking-[0.08em] transition ${
-                  searchType === "movie"
-                    ? "border-saffron/70 bg-saffron/20 text-saffron"
-                    : "border-white/15 bg-slate-950/40 text-slate-300 hover:border-saffron/40"
-                }`}
-              >
-                Movies
-              </button>
-              <button
-                type="button"
-                onClick={() => setSearchType("tv")}
-                className={`h-9 rounded-lg border text-xs font-semibold uppercase tracking-[0.08em] transition ${
-                  searchType === "tv"
-                    ? "border-saffron/70 bg-saffron/20 text-saffron"
-                    : "border-white/15 bg-slate-950/40 text-slate-300 hover:border-saffron/40"
-                }`}
-              >
-                Web Series
-              </button>
+        <div className="flex items-center gap-6 text-white">
+          <div className={`flex items-center gap-2 border border-white/40 bg-black/40 px-2 py-1 transition-all ${isSearchOpen ? 'w-64 opacity-100' : 'w-10 overflow-hidden'}`}>
+            <SearchIcon className="h-5 w-5 cursor-pointer shrink-0" onClick={() => setIsSearchOpen(!isSearchOpen)} />
+            <input 
+              type="text" 
+              placeholder="Titles, people, genres" 
+              className="bg-transparent text-sm outline-none w-full"
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+            />
+            {searchQuery && <X className="h-4 w-4 cursor-pointer" onClick={() => setSearchQuery("")} />}
+          </div>
+          <div className="flex items-center gap-4">
+            <select 
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="bg-transparent text-xs text-gray-400 outline-none border border-white/20 px-1 py-0.5 hover:text-white transition-colors"
+            >
+              <option value="en-US" className="bg-[#141414]">English</option>
+              <option value="hi-IN" className="bg-[#141414]">हिन्दी (Hindi)</option>
+            </select>
+            <Bell className="h-5 w-5 cursor-pointer" />
+            <div className="flex items-center gap-2 cursor-pointer">
+              <div className="h-8 w-8 overflow-hidden rounded bg-blue-500">
+                 <User className="h-full w-full p-1" />
+              </div>
+              <div className="border-l-4 border-r-4 border-t-4 border-transparent border-t-white" />
             </div>
-            <form onSubmit={onSubmitSearch} className="space-y-3">
-              <label htmlFor="movie-name" className="text-sm text-slate-300">
-                {searchType === "tv" ? "Series title" : "Movie title"}
-              </label>
-              <input
-                id="movie-name"
-                value={searchQuery}
-                onChange={(event) => {
-                  setSearchQuery(event.target.value);
-                  setSearchMessage("");
-                }}
-                className="h-11 w-full rounded-xl border border-white/20 bg-slate-950/70 px-3 text-white outline-none ring-saffron transition focus:ring-2"
-                placeholder={
-                  searchType === "tv"
-                    ? "e.g. Breaking Bad"
-                    : "e.g. Interstellar"
-                }
-              />
-              {searchQuery.trim().length >= 2 ? (
-                <p className="text-xs text-slate-400">
-                  Showing close matches for &quot;{searchQuery.trim()}&quot;
-                  {isPreviewLoading ? "..." : ""}
-                </p>
-              ) : null}
-              <button
-                type="submit"
-                disabled={isSearching}
-                className="h-11 w-full rounded-xl border border-saffron/40 bg-saffron/10 font-semibold text-saffron transition hover:bg-saffron/20 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isSearching
-                  ? "Searching..."
-                  : searchType === "tv"
-                    ? "Search Web Series"
-                    : "Search Movie"}
-              </button>
-            </form>
+          </div>
+        </div>
+      </nav>
 
-            {searchMessage ? (
-              <p className="mt-3 text-xs text-amber-300">{searchMessage}</p>
-            ) : null}
-
-            {searchResults.length > 0 ? (
-              <div className="mt-3 max-h-72 space-y-2 overflow-auto pr-1">
-                {searchResults.map((movie) => (
-                  <button
-                    key={`search-${movie.mediaType}-${movie.id}`}
-                    type="button"
-                    onClick={() => pickMovie(movie.id, movie.mediaType)}
-                    className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-slate-950/60 p-2 text-left transition hover:border-saffron/60"
-                  >
-                    <div className="relative h-16 w-12 overflow-hidden rounded-md bg-slate-900">
-                      {posterUrl(movie.posterPath) &&
-                      !failedImages.has(movie.id) ? (
-                        <Image
-                          src={posterUrl(movie.posterPath)!}
-                          alt={movie.title}
-                          fill
-                          sizes="48px"
-                          onLoad={() => handleImageLoad(movie.id)}
-                          onError={() => handleImageError(movie.id)}
-                          className={`object-cover transition-opacity duration-500 ${
-                            loadedImages.has(movie.id)
-                              ? "opacity-100"
-                              : "opacity-0"
-                          }`}
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-[10px] text-slate-400">
-                          No Poster
-                        </div>
-                      )}
+      {/* Hero Banner / Player Overlay */}
+      <section className="relative h-[85vh] w-full lg:h-[95vh]">
+        {isPlayerOpen ? (
+          <div className="absolute inset-0 z-40 bg-[#141414] flex flex-col pt-16 md:pt-20">
+             <div className="relative flex-grow">
+               <iframe 
+                 src={embedUrl}
+                 className="h-full w-full border-0"
+                 allowFullScreen
+               />
+               <button 
+                 onClick={() => setIsPlayerOpen(false)}
+                 className="absolute right-8 top-8 z-50 rounded-full bg-black/60 p-2 text-white hover:bg-black/80 transition-all hover:scale-110"
+                 title="Close Player"
+               >
+                 <X className="h-6 w-6" />
+               </button>
+             </div>
+             
+             {selectedMediaType === "tv" && (
+               <div className="flex items-center gap-6 bg-[#141414] px-4 py-4 md:px-12 border-t border-white/10">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">Season</label>
+                    <select 
+                      value={season}
+                      onChange={(e) => {
+                        setSeason(Number(e.target.value));
+                        setEpisode(1);
+                      }}
+                      className="bg-zinc-800 text-white text-sm px-3 py-1.5 rounded border border-white/10 outline-none focus:border-red-600 transition-colors cursor-pointer"
+                    >
+                      {Array.from({ length: selectedMovieDetails?.numberOfSeasons || 1 }, (_, i) => i + 1).map(s => (
+                        <option key={s} value={s}>Season {s}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">Episode</label>
+                    <div className="flex items-center gap-2">
+                      <select 
+                        value={episode}
+                        onChange={(e) => setEpisode(Number(e.target.value))}
+                        className="w-24 bg-zinc-800 text-white text-sm px-3 py-1.5 rounded border border-white/10 outline-none focus:border-red-600 transition-colors cursor-pointer"
+                      >
+                        {Array.from({ 
+                          length: selectedMovieDetails?.seasons?.find(s => s.seasonNumber === season)?.episodeCount || 20 
+                        }, (_, i) => i + 1).map(e => (
+                          <option key={e} value={e}>Episode {e}</option>
+                        ))}
+                      </select>
+                      <div className="flex gap-1">
+                        <button 
+                          onClick={() => setEpisode(Math.max(1, episode - 1))}
+                          className="bg-zinc-800 p-1.5 rounded hover:bg-zinc-700 disabled:opacity-30"
+                          disabled={episode <= 1}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <button 
+                          onClick={() => {
+                            const maxEp = selectedMovieDetails?.seasons?.find(s => s.seasonNumber === season)?.episodeCount || 99;
+                            if (episode < maxEp) setEpisode(episode + 1);
+                          }}
+                          className="bg-zinc-800 p-1.5 rounded hover:bg-zinc-700 disabled:opacity-30"
+                          disabled={episode >= (selectedMovieDetails?.seasons?.find(s => s.seasonNumber === season)?.episodeCount || 99)}
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-white">
-                        {movie.title}
-                      </p>
-                      <p className="text-xs text-slate-300">
-                        {movie.mediaType === "tv" ? "TV" : "Movie"} • ⭐{" "}
-                        {movie.rating} • {movie.releaseDate || "N/A"}
-                      </p>
-                    </div>
-                  </button>
-                ))}
+                  </div>
+                 <div className="ml-auto hidden md:block">
+                   <p className="text-sm font-medium text-white truncate max-w-xs">
+                     Playing: {selectedMovieDetails?.title}
+                   </p>
+                   <p className="text-xs text-gray-400">
+                     S{season} E{episode}
+                   </p>
+                 </div>
+               </div>
+             )}
+          </div>
+        ) : (
+          heroMovie && (
+            <>
+              <div className="absolute inset-0 z-0">
+                <Image 
+                  src={backdropUrl(heroMovie.backdropPath) || posterUrl(heroMovie.posterPath)!}
+                  alt={heroMovie.title}
+                  fill
+                  className="object-cover"
+                  priority
+                />
+                <div className="hero-vignette absolute inset-0 z-10" />
+                <div className="hero-vignette-left absolute inset-0 z-10" />
               </div>
-            ) : null}
-          </div>
 
-          <a
-            href={selectedEmbedUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-xl border border-saffron/50 bg-saffron/10 font-semibold text-saffron transition hover:bg-saffron/20"
-          >
-            Open in New Tab
-          </a>
-        </div>
+              <div className="absolute bottom-1/4 left-4 z-20 flex max-w-xl flex-col gap-4 md:left-12 lg:bottom-1/3">
+                <h1 className="animate-banner-text text-5xl font-extrabold uppercase italic tracking-tighter text-white drop-shadow-2xl md:text-7xl">
+                  {heroMovie.title}
+                </h1>
+                <p className="line-clamp-3 text-lg text-white drop-shadow-md">
+                  {heroMovie.overview}
+                </p>
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => playMovie(heroMovie)}
+                    className="flex items-center gap-2 rounded bg-white px-8 py-2 text-lg font-bold text-black transition hover:bg-white/80"
+                  >
+                    <Play className="h-6 w-6 fill-black" /> Play
+                  </button>
+                  <button className="flex items-center gap-2 rounded bg-gray-500/70 px-8 py-2 text-lg font-bold text-white transition hover:bg-gray-500/50">
+                    <Info className="h-6 w-6" /> More Info
+                  </button>
+                </div>
+              </div>
 
-        <div className="overflow-hidden rounded-3xl border border-white/15 bg-black/40 shadow-glow">
-          <div className="border-b border-white/15 px-4 py-3 text-sm text-slate-300">
-            Streaming {selectedMediaType === "tv" ? "Series" : "Movie"} ID:{" "}
-            <span className="font-semibold text-saffron">
-              {selectedMovieId}
-            </span>
-            {selectedMediaType === "tv" ? (
-              <span className="ml-2 text-slate-300">
-                • S{safeSeason} E{safeEpisode}
-              </span>
-            ) : null}
-          </div>
-          <div className="aspect-video w-full">
-            <iframe
-              key={selectedMovieId}
-              src={selectedEmbedUrl}
-              allowFullScreen
-              referrerPolicy="strict-origin-when-cross-origin"
-              title="Movie Player"
-              className="h-full w-full border-0"
-            />
-          </div>
-        </div>
+              <div className="absolute bottom-1/4 right-0 z-20 flex items-center gap-4 pr-12 lg:bottom-1/3">
+                 <button 
+                   onClick={() => setIsMuted(!isMuted)}
+                   className="rounded-full border-2 border-white/50 p-2 text-white hover:border-white"
+                 >
+                   {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+                 </button>
+                 <div className="border-l-4 border-white bg-black/40 px-4 py-1 text-lg font-medium text-white backdrop-blur-sm">
+                   TV-MA
+                 </div>
+              </div>
+            </>
+          )
+        )}
       </section>
 
-      <section className="space-y-6">
-        {categories.map((category) => (
-          <div
-            key={category.key}
-            className="rounded-3xl border border-white/15 bg-white/[0.03] p-4 backdrop-blur-md"
-          >
-            <h3 className="mb-4 text-2xl font-semibold text-white">
-              {category.label}
-            </h3>
-
-            {category.movies.length === 0 ? (
-              <p className="text-sm text-rose-300">
-                No movies loaded for this category.
-              </p>
-            ) : (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-                {category.movies.map((movie) => (
-                  <button
-                    key={movie.id}
-                    type="button"
-                    onClick={() => pickMovie(movie.id)}
-                    className="group overflow-hidden rounded-2xl border border-white/10 bg-slate-950/70 text-left transition hover:-translate-y-1 hover:border-saffron/70"
-                  >
-                    <div className="relative aspect-[2/3] w-full overflow-hidden bg-slate-900">
-                      {posterUrl(movie.posterPath) &&
-                      !failedImages.has(movie.id) ? (
-                        <>
-                          {!loadedImages.has(movie.id) && (
-                            <div className="absolute inset-0 bg-gradient-to-r from-slate-800 to-slate-700 animate-pulse" />
-                          )}
-                          <Image
-                            src={posterUrl(movie.posterPath)!}
-                            alt={movie.title}
-                            fill
-                            sizes="(max-width: 768px) 50vw, 200px"
-                            onLoad={() => handleImageLoad(movie.id)}
-                            onError={() => handleImageError(movie.id)}
-                            className={`object-cover transition-opacity duration-500 group-hover:scale-105 ${
-                              loadedImages.has(movie.id)
-                                ? "opacity-100"
-                                : "opacity-0"
-                            }`}
-                          />
-                        </>
-                      ) : (
-                        <div className="h-full w-full bg-gradient-to-br from-saffron/20 to-coral/20 flex items-center justify-center transition duration-300 group-hover:from-saffron/30 group-hover:to-coral/30">
-                          <div className="text-center text-xs text-slate-400">
-                            <p>🎬</p>
-                            <p>No Poster</p>
-                          </div>
-                        </div>
-                      )}
+      {/* Rows & Footer (Hidden when player is open for distraction-free viewing) */}
+      {!isPlayerOpen && (
+        <>
+          <div className="relative z-30 -mt-32 space-y-8 pb-20">
+            {/* Continue Watching Section (Only in Home) */}
+            {activeSection === "home" && (
+              <div className="space-y-2 px-4 md:px-12">
+                <h2 className="flex items-center gap-1 text-lg font-bold text-white transition-colors hover:text-gray-300">
+                  Continue Watching <ChevronRight className="h-4 w-4" />
+                </h2>
+                <div className="no-scrollbar flex gap-4 overflow-x-auto overflow-y-hidden py-4 px-2">
+                  {categories[0]?.movies.slice(0, 5).map((movie, idx) => (
+                    <div 
+                      key={`continue-${movie.id}`}
+                      className="group relative aspect-video w-[200px] flex-shrink-0 cursor-pointer overflow-hidden rounded-md transition-transform duration-300 hover:scale-105 hover:z-40 md:w-[280px]"
+                      onClick={() => playMovie(movie)}
+                    >
+                      <Image 
+                        src={backdropUrl(movie.backdropPath) || posterUrl(movie.posterPath)!}
+                        alt={movie.title}
+                        fill
+                        sizes="(max-width: 768px) 200px, 280px"
+                        className="object-cover"
+                      />
+                      <div className="absolute top-2 left-2 rounded bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white uppercase border border-white/20 backdrop-blur-sm">
+                        S{idx+1}:E{idx+4}
+                      </div>
+                      {/* Progress Bar */}
+                      <div className="absolute bottom-0 h-1.5 w-full bg-gray-600/50">
+                        <div className="h-full bg-red-600 transition-all duration-1000" style={{ width: `${(idx * 15 + 30) % 100}%` }} />
+                      </div>
+                      <div className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/10" />
                     </div>
-                    <div className="space-y-1 p-3">
-                      <p className="line-clamp-2 text-sm font-semibold text-white">
-                        {movie.title}
-                      </p>
-                      <p className="text-xs text-slate-300">
-                        ⭐ {movie.rating} • {movie.releaseDate || "N/A"}
-                      </p>
-                    </div>
-                  </button>
-                ))}
+                  ))}
+                </div>
               </div>
             )}
+
+            {filteredCategories.map((category) => {
+              const isTop10 = category.key.includes("top-10");
+              return (
+                <div key={category.key} className="space-y-3 px-4 md:px-12">
+                  <h2 className="flex items-center gap-1.5 text-xl font-bold text-white hover:text-gray-200 transition-colors cursor-pointer group/title">
+                    {category.label}
+                    <ChevronRight className="h-5 w-5 text-[#E50914] opacity-0 -translate-x-1 transition-all duration-200 group-hover/title:opacity-100 group-hover/title:translate-x-0" />
+                  </h2>
+                  
+                  <div className="relative">
+                    <div className="no-scrollbar flex gap-3 overflow-x-auto overflow-y-hidden py-6 px-1">
+                      {category.movies.map((movie, index) => (
+                        <div 
+                          key={`${category.key}-${movie.id}`}
+                          className={`group/card relative flex-shrink-0 cursor-pointer ${isTop10 ? 'h-[280px] w-[200px] ml-12 first:ml-8' : 'h-[220px] w-[150px] md:h-[270px] md:w-[185px]'}`}
+                          onClick={() => openDetail(movie)}
+                        >
+                          {isTop10 && (
+                            <span className="top10-number -left-14">{index + 1}</span>
+                          )}
+                          
+                          {/* Card */}
+                          <div className="relative h-full w-full overflow-hidden rounded-lg shadow-xl bg-zinc-900 transition-all duration-300 group-hover/card:scale-110 group-hover/card:shadow-[0_20px_60px_rgba(0,0,0,0.8)] group-hover/card:z-40 group-hover/card:ring-2 group-hover/card:ring-white/20">
+                            {posterUrl(movie.posterPath) || backdropUrl(movie.backdropPath) ? (
+                              <Image 
+                                src={posterUrl(movie.posterPath) || backdropUrl(movie.backdropPath)!}
+                                alt={movie.title}
+                                fill
+                                sizes="(max-width: 768px) 150px, 185px"
+                                className="object-cover transition-transform duration-500 group-hover/card:scale-105"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center bg-zinc-800 p-3 text-center">
+                                <p className="text-xs font-bold text-gray-500 uppercase">{movie.title}</p>
+                              </div>
+                            )}
+
+                            {/* Gradient overlay always visible at bottom */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover/card:opacity-100 transition-opacity duration-300" />
+
+                            {/* Hover info panel */}
+                            <div className="absolute bottom-0 left-0 right-0 translate-y-full group-hover/card:translate-y-0 transition-transform duration-300 p-3 bg-gradient-to-t from-black via-black/95 to-transparent rounded-b-lg">
+                              <p className="text-xs font-bold text-white leading-tight line-clamp-2 mb-2">{movie.title}</p>
+                              <div className="flex items-center gap-2">
+                                {/* Play button */}
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); openDetail(movie); }}
+                                  className="flex items-center justify-center w-8 h-8 rounded-full bg-white hover:bg-gray-200 transition-all duration-200 hover:scale-110 flex-shrink-0"
+                                  title="Play"
+                                >
+                                  <Play className="h-3.5 w-3.5 text-black fill-black ml-0.5" />
+                                </button>
+                                {/* My List button */}
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); toggleMyList(movie); }}
+                                  className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-200 hover:scale-110 flex-shrink-0 ${
+                                    isInMyList(movie)
+                                      ? "border-white bg-white text-black"
+                                      : "border-gray-400 bg-transparent text-white hover:border-white"
+                                  }`}
+                                  title={isInMyList(movie) ? "Remove from My List" : "Add to My List"}
+                                >
+                                  <span className="text-sm font-bold leading-none">{isInMyList(movie) ? "✓" : "+"}</span>
+                                </button>
+                                {/* Rating */}
+                                {movie.rating > 0 && (
+                                  <span className="ml-auto text-[10px] font-bold text-green-400">⭐ {movie.rating}</span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* New badge */}
+                            {index === 0 && (
+                              <div className="absolute top-2 left-0 bg-[#E50914] px-2 py-0.5 text-[9px] font-black text-white uppercase tracking-widest">
+                                NEW
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Empty My List state */}
+                  {activeSection === "my-list" && myList.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-24 text-center">
+                      <div className="mb-4 text-6xl">📋</div>
+                      <h3 className="text-xl font-bold text-white mb-2">Your list is empty</h3>
+                      <p className="text-gray-400 text-sm max-w-xs">Hover over any movie or show and click <strong>+</strong> to save it here for later.</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        ))}
-      </section>
-    </main>
+
+          {/* Footer */}
+          <footer className="px-12 py-10 text-gray-500">
+            <div className="mb-8 flex gap-8">
+               {/* Social links placeholder */}
+            </div>
+            <div className="grid grid-cols-2 gap-4 text-xs md:grid-cols-4">
+               <div>Audio and Subtitles</div>
+               <div>Audio Description</div>
+               <div>Help Center</div>
+               <div>Gift Cards</div>
+               <div>Media Center</div>
+               <div>Investor Relations</div>
+               <div>Jobs</div>
+               <div>Terms of Use</div>
+               <div>Privacy</div>
+               <div>Legal Notices</div>
+               <div>Cookie Preferences</div>
+               <div>Corporate Information</div>
+               <div>Contact Us</div>
+            </div>
+            <div className="mt-8">
+              <button className="border border-gray-500 px-2 py-1 text-xs">Service Code</button>
+            </div>
+            <div className="mt-4 text-[10px]">© 1997-2026 1FLEX, Inc.</div>
+          </footer>
+        </>
+      )}
+
+      {/* Search Results Overlay */}
+      {searchQuery && (
+        <div className="fixed inset-0 z-[60] bg-[#141414] overflow-y-auto">
+          {/* Search Header */}
+          <div className="sticky top-0 z-10 flex items-center justify-between bg-[#141414] px-4 py-4 md:px-12">
+            <div className="flex items-center gap-8">
+              <div className="text-2xl font-black tracking-tighter text-[#E50914] cursor-pointer" onClick={() => setSearchQuery("")}>1FLEX</div>
+              <div className="flex items-center gap-2 border border-white/40 bg-black/40 px-3 py-1.5 w-64 md:w-96">
+                <SearchIcon className="h-5 w-5 text-gray-400" />
+                <input 
+                  type="text" 
+                  placeholder="Titles, people, genres" 
+                  className="bg-transparent text-sm text-white outline-none w-full"
+                  value={searchQuery}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  autoFocus
+                />
+                <X className="h-5 w-5 cursor-pointer text-gray-400 hover:text-white" onClick={() => setSearchQuery("")} />
+              </div>
+            </div>
+            <button 
+              onClick={() => setSearchQuery("")}
+              className="text-white hover:text-gray-300 flex items-center gap-2"
+            >
+              <span className="hidden md:inline text-sm font-medium">Close</span>
+              <X className="h-6 w-6" />
+            </button>
+          </div>
+
+          <div className="px-4 md:px-12 pb-20 pt-8">
+            <h2 className="mb-8 text-xl font-medium text-gray-400">
+              Showing results for: <span className="text-white font-bold">&quot;{searchQuery}&quot;</span>
+            </h2>
+            
+            <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8">
+              {searchResults.length > 0 ? (
+                searchResults.map((movie) => (
+                  <div 
+                    key={movie.id}
+                    className="group relative aspect-[2/3] cursor-pointer overflow-hidden rounded-md bg-zinc-800 transition hover:scale-110 hover:z-10"
+                    onClick={() => {
+                      playMovie(movie);
+                      setSearchQuery("");
+                    }}
+                  >
+                    {posterUrl(movie.posterPath) || backdropUrl(movie.backdropPath) ? (
+                      <Image 
+                         src={posterUrl(movie.posterPath) || backdropUrl(movie.backdropPath)!}
+                         alt={movie.title}
+                         fill
+                         className="object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full flex-col items-center justify-center bg-zinc-800 p-2 text-center">
+                        <p className="text-[10px] font-bold text-gray-500 uppercase">{movie.title}</p>
+                        <p className="text-[8px] text-gray-600 italic">No Artwork</p>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/60 p-2 opacity-0 transition-opacity group-hover:opacity-100 flex flex-col justify-end">
+                       <p className="line-clamp-2 text-[10px] font-bold text-white leading-tight">{movie.title}</p>
+                       <p className="text-[8px] text-gray-300">{movie.rating} • {movie.mediaType === "tv" ? "TV" : "Movie"}</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="col-span-full py-20 text-center">
+                   <SearchIcon className="h-16 w-16 text-zinc-700 mx-auto mb-4" />
+                   <p className="text-xl text-gray-500 font-medium">No results found for &quot;{searchQuery}&quot;</p>
+                   <p className="text-sm text-gray-600 mt-2">Try checking your spelling or searching for a different title.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Detail Modal */}
+      {detailMovie && (
+        <div 
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4 md:p-8"
+          onClick={() => setDetailMovie(null)}
+        >
+          {/* Backdrop blur */}
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+
+          {/* Modal Card */}
+          <div 
+            className="relative z-10 w-full max-w-2xl overflow-hidden rounded-2xl bg-zinc-900 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Backdrop image header */}
+            <div className="relative h-64 w-full md:h-80">
+              {backdropUrl((detailData ?? detailMovie).backdropPath) || posterUrl((detailData ?? detailMovie).posterPath) ? (
+                <Image
+                  src={backdropUrl((detailData ?? detailMovie).backdropPath) || posterUrl((detailData ?? detailMovie).posterPath)!}
+                  alt={(detailData ?? detailMovie).title}
+                  fill
+                  className="object-cover"
+                />
+              ) : (
+                <div className="h-full w-full bg-zinc-800 flex items-center justify-center">
+                  <p className="text-gray-500 text-xl font-bold">{detailMovie.title}</p>
+                </div>
+              )}
+              {/* Gradient over image */}
+              <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/40 to-transparent" />
+
+              {/* Close button */}
+              <button
+                onClick={() => setDetailMovie(null)}
+                className="absolute top-4 right-4 flex h-9 w-9 items-center justify-center rounded-full bg-zinc-800/80 text-white backdrop-blur-sm hover:bg-zinc-700 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+
+              {/* Title over image */}
+              <div className="absolute bottom-4 left-5 right-5">
+                <h2 className="text-2xl font-black text-white md:text-3xl leading-tight">
+                  {(detailData ?? detailMovie).title}
+                </h2>
+              </div>
+            </div>
+
+            {/* Info section */}
+            <div className="p-5 space-y-4">
+              {/* Meta row */}
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                {(detailData ?? detailMovie).rating > 0 && (
+                  <span className="font-bold text-green-400">⭐ {(detailData ?? detailMovie).rating}</span>
+                )}
+                {(detailData ?? detailMovie).releaseDate && (
+                  <span className="text-gray-400">{(detailData ?? detailMovie).releaseDate.slice(0, 4)}</span>
+                )}
+                <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border ${detailMovie.mediaType === "tv" ? "border-blue-500 text-blue-400" : "border-gray-500 text-gray-400"}`}>
+                  {detailMovie.mediaType === "tv" ? "Series" : "Movie"}
+                </span>
+                {"genres" in (detailData ?? {}) && (detailData as SearchResult)?.genres?.map((g) => (
+                  <span key={g} className="rounded-full bg-zinc-700 px-2.5 py-0.5 text-[11px] text-gray-300">{g}</span>
+                ))}
+              </div>
+
+              {/* Overview */}
+              {(detailData ?? detailMovie as any).overview && (
+                <p className="text-sm text-gray-300 leading-relaxed line-clamp-4">
+                  {(detailData ?? detailMovie as any).overview}
+                </p>
+              )}
+
+              {/* Tagline */}
+              {(detailData as SearchResult)?.tagline && (
+                <p className="text-xs italic text-gray-500">&ldquo;{(detailData as SearchResult).tagline}&rdquo;</p>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={() => playMovie(detailMovie)}
+                  className="flex items-center gap-2 rounded-lg bg-white px-6 py-2.5 text-sm font-bold text-black hover:bg-gray-200 transition-all hover:scale-105"
+                >
+                  <Play className="h-4 w-4 fill-black" /> Play
+                </button>
+                <button
+                  onClick={() => toggleMyList(detailMovie)}
+                  className={`flex items-center gap-2 rounded-lg border-2 px-5 py-2.5 text-sm font-bold transition-all hover:scale-105 ${
+                    isInMyList(detailMovie)
+                      ? "border-white bg-white text-black"
+                      : "border-gray-500 bg-transparent text-white hover:border-white"
+                  }`}
+                >
+                  <span className="text-base leading-none">{isInMyList(detailMovie) ? "✓" : "+"}</span>
+                  {isInMyList(detailMovie) ? "In My List" : "My List"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

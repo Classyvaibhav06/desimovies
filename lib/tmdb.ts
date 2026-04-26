@@ -6,11 +6,13 @@ export type MovieSummary = {
   backdropPath: string | null;
   releaseDate: string;
   rating: number;
+  mediaType: "movie" | "tv";
 };
 
 export type CategoryWithMovies = {
   key: string;
   label: string;
+  mediaType: "movie" | "tv";
   movies: MovieSummary[];
 };
 
@@ -23,6 +25,14 @@ export type SearchResult = {
   releaseDate: string;
   rating: number;
   mediaType: "movie" | "tv";
+  genres?: string[];
+  runtime?: number;
+  tagline?: string;
+  numberOfSeasons?: number;
+  seasons?: Array<{
+    seasonNumber: number;
+    episodeCount: number;
+  }>;
 };
 
 type TmdbResponse = {
@@ -45,20 +55,23 @@ type FanartMovieResponse = {
   }>;
 };
 
-const TMDB_BASE_URL = "https://api.themoviedb.org/3";
+const TMDB_BASE_URL = "https://api.tmdb.org/3";
 const FANART_BASE_URL = "https://webservice.fanart.tv/v3";
 
 const fanartPosterCache = new Map<number, string | null>();
 
-const CATEGORY_CONFIGS: Array<{ key: string; label: string; endpoint: string }> = [
-  { key: "trending", label: "Trending", endpoint: "/trending/movie/week" },
-  { key: "popular", label: "Popular", endpoint: "/movie/popular" },
-  { key: "top-rated", label: "Top Rated", endpoint: "/movie/top_rated" },
-  { key: "in-cinemas", label: "In Cinemas", endpoint: "/movie/now_playing" },
+const CATEGORY_CONFIGS: Array<{ key: string; label: string; endpoint: string; mediaType: "movie" | "tv" }> = [
+  { key: "trending", label: "Trending Now", endpoint: "/trending/all/day", mediaType: "movie" },
+  { key: "popular-movies", label: "Popular Movies", endpoint: "/movie/popular", mediaType: "movie" },
+  { key: "top-10-movies", label: "Top 10 Movies Today", endpoint: "/movie/popular", mediaType: "movie" },
+  { key: "top-rated", label: "Top Rated Movies", endpoint: "/movie/top_rated", mediaType: "movie" },
+  { key: "popular-tv", label: "Popular TV Shows", endpoint: "/tv/popular", mediaType: "tv" },
+  { key: "top-10-tv", label: "Top 10 TV Shows Today", endpoint: "/tv/popular", mediaType: "tv" },
   {
     key: "desi-picks",
     label: "Desi Picks",
-    endpoint: "/discover/movie?with_origin_country=IN&sort_by=popularity.desc"
+    endpoint: "/discover/movie?with_origin_country=IN&sort_by=popularity.desc",
+    mediaType: "movie"
   }
 ];
 
@@ -68,28 +81,36 @@ const FALLBACK_MOVIES_BY_CATEGORY: Record<
 > = {
   trending: [
     { id: 1078605, title: "Weapons", posterPath: null, releaseDate: "2025-01-01", rating: 7.2 },
-    { id: 603, title: "The Matrix", posterPath: null, releaseDate: "1999-03-30", rating: 8.7 },
-    { id: 155, title: "The Dark Knight", posterPath: null, releaseDate: "2008-07-16", rating: 9.0 }
+    { id: 603, title: "The Matrix", posterPath: "https://m.media-amazon.com/images/M/MV5BMjhiMzgxZTctNDc1Ni00OTIxLTgwMTUtMTYzOTlhMzExMzkwXkEyXkFqcGdeQXVyNzkwMjQ5NzM@._V1_.jpg", releaseDate: "1999-03-30", rating: 8.7 },
+    { id: 155, title: "The Dark Knight", posterPath: "https://m.media-amazon.com/images/M/MV5BMTMxNTMwODM0NF5BMl5BanBnXkFtZTcwODAyMTk2Mw@@._V1_.jpg", releaseDate: "2008-07-16", rating: 9.0 }
   ],
-  popular: [
-    { id: 27205, title: "Inception", posterPath: null, releaseDate: "2010-07-15", rating: 8.8 },
-    { id: 299536, title: "Infinity War", posterPath: null, releaseDate: "2018-04-25", rating: 8.4 },
-    { id: 157336, title: "Interstellar", posterPath: "/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg", releaseDate: "2014-11-05", rating: 8.7 }
+  "popular-movies": [
+    { id: 27205, title: "Inception", posterPath: "https://m.media-amazon.com/images/M/MV5BMjAxMzY3NjcxNF5BMl5BanBnXkFtZTcwNTI5OTM0Mw@@._V1_.jpg", releaseDate: "2010-07-15", rating: 8.8 },
+    { id: 299536, title: "Infinity War", posterPath: "https://m.media-amazon.com/images/M/MV5BMjMxNjY2MDU1OV5BMl5BanBnXkFtZTgwNzY1MTUwNTM@._V1_.jpg", releaseDate: "2018-04-25", rating: 8.4 },
+    { id: 157336, title: "Interstellar", posterPath: "https://m.media-amazon.com/images/M/MV5BZjdkOTU3MDktN2IxOS00OGEyLWFmMjktY2FiMmZkNWIyODZiXkEyXkFqcGdeQXVyMTMxODk2OTU@._V1_.jpg", releaseDate: "2014-11-05", rating: 8.7 }
+  ],
+  "top-10-movies": [
+    { id: 27205, title: "Inception", posterPath: "https://m.media-amazon.com/images/M/MV5BMjAxMzY3NjcxNF5BMl5BanBnXkFtZTcwNTI5OTM0Mw@@._V1_.jpg", releaseDate: "2010-07-15", rating: 8.8 },
+    { id: 299536, title: "Infinity War", posterPath: "https://m.media-amazon.com/images/M/MV5BMjMxNjY2MDU1OV5BMl5BanBnXkFtZTgwNzY1MTUwNTM@._V1_.jpg", releaseDate: "2018-04-25", rating: 8.4 }
   ],
   "top-rated": [
     { id: 238, title: "The Godfather", posterPath: null, releaseDate: "1972-03-14", rating: 9.2 },
     { id: 278, title: "The Shawshank Redemption", posterPath: null, releaseDate: "1994-09-23", rating: 9.3 },
     { id: 240, title: "The Godfather Part II", posterPath: null, releaseDate: "1974-12-20", rating: 9.0 }
   ],
-  "in-cinemas": [
-    { id: 346698, title: "Barbie", posterPath: null, releaseDate: "2023-07-19", rating: 7.1 },
-    { id: 872585, title: "Oppenheimer", posterPath: null, releaseDate: "2023-07-19", rating: 8.1 },
-    { id: 438631, title: "Dune", posterPath: null, releaseDate: "2021-09-15", rating: 7.8 }
+  "popular-tv": [
+    { id: 76479, title: "The Boys", posterPath: "https://m.media-amazon.com/images/M/MV5BN2RjZGFhMDEtMzMwZi00YzczLThmNWQtY2E2MjE1OTMxNDI1XkEyXkFqcGdeQXVyMTkxNjUyNQ@@._V1_.jpg", releaseDate: "2019-07-25", rating: 8.5 },
+    { id: 124364, title: "From", posterPath: "https://m.media-amazon.com/images/M/MV5BMzYyZGY1YWUtN2I4ZC00MjljLWI4YjQtY2Y0YjZhN2ZkYzUzXkEyXkFqcGdeQXVyMTEyMjM2NDc2._V1_.jpg", releaseDate: "2022-02-20", rating: 8.2 },
+    { id: 76054, title: "Dark", posterPath: "https://m.media-amazon.com/images/M/MV5BMTEyNDM5NjgzOTdeQTJeQWpwZ15BbWU4MDgyMzA2NjEx._V1_.jpg", releaseDate: "2017-06-27", rating: 8.4 }
+  ],
+  "top-10-tv": [
+    { id: 76479, title: "The Boys", posterPath: "https://m.media-amazon.com/images/M/MV5BN2RjZGFhMDEtMzMwZi00YzczLThmNWQtY2E2MjE1OTMxNDI1XkEyXkFqcGdeQXVyMTkxNjUyNQ@@._V1_.jpg", releaseDate: "2019-07-25", rating: 8.5 },
+    { id: 1396, title: "Breaking Bad", posterPath: "https://m.media-amazon.com/images/M/MV5BMjhiMzgxZTctNDc1Ni00OTIxLTgwMTUtMTYzOTlhMzExMzkwXkEyXkFqcGdeQXVyNzkwMjQ5NzM@._V1_.jpg", releaseDate: "2008-01-20", rating: 9.5 }
   ],
   "desi-picks": [
-    { id: 127538, title: "Kabir Singh", posterPath: null, releaseDate: "2019-06-21", rating: 7.1 },
-    { id: 20453, title: "3 Idiots", posterPath: null, releaseDate: "2009-12-23", rating: 8.0 },
-    { id: 19404, title: "Dilwale Dulhania Le Jayenge", posterPath: null, releaseDate: "1995-10-20", rating: 8.5 }
+    { id: 127538, title: "Kabir Singh", posterPath: "https://m.media-amazon.com/images/M/MV5BMGRjYjQxM2ItYTM2MS00ZmY0LThmZmUtOTI2NTRhYjEwYWZjXkEyXkFqcGdeQXVyNDAzNDk0MTQ@._V1_.jpg", releaseDate: "2019-06-21", rating: 7.1 },
+    { id: 20453, title: "3 Idiots", posterPath: "https://m.media-amazon.com/images/M/MV5BMzE1MTM4NTM2Ml5BMl5BanBnXkFtZTgwNTQyNzQxMTE@._V1_.jpg", releaseDate: "2009-12-23", rating: 8.0 },
+    { id: 19404, title: "Dilwale Dulhania Le Jayenge", posterPath: "https://m.media-amazon.com/images/M/MV5BMDQ2OWE3NWQtYjU3ZC00Y2IzLThmODQtOTA5YjhiMTgzNjliXkEyXkFqcGdeQXVyMTA0MTM5NjI2._V1_.jpg", releaseDate: "1995-10-20", rating: 8.5 }
   ]
 };
 
@@ -102,13 +123,6 @@ function getTmdbAuthConfig(): TmdbAuthConfig {
   const apiKey = process.env.TMDB_API_KEY?.trim();
   const readAccessToken = process.env.TMDB_READ_ACCESS_TOKEN?.trim();
 
-  if (apiKey) {
-    return {
-      headers: {},
-      appendApiKeyToUrl: true
-    };
-  }
-
   if (readAccessToken) {
     return {
       headers: {
@@ -118,18 +132,28 @@ function getTmdbAuthConfig(): TmdbAuthConfig {
     };
   }
 
+  if (apiKey) {
+    return {
+      headers: {},
+      appendApiKeyToUrl: true
+    };
+  }
+
   throw new Error("Set TMDB_READ_ACCESS_TOKEN or TMDB_API_KEY in your environment.");
 }
 
-function toMovieSummary(movie: TmdbResponse["results"][number]): MovieSummary {
+function toMovieSummary(movie: any, defaultType: "movie" | "tv" = "movie"): MovieSummary {
+  // TMDB's /trending or /search/multi returns media_type in the result
+  const mediaType = movie.media_type || defaultType;
   return {
     id: movie.id,
-    title: movie.title,
+    title: movie.title ?? movie.name ?? "Untitled",
     overview: movie.overview,
     posterPath: movie.poster_path,
     backdropPath: movie.backdrop_path,
-    releaseDate: movie.release_date,
-    rating: Number(movie.vote_average.toFixed(1))
+    releaseDate: movie.release_date ?? movie.first_air_date ?? "",
+    rating: Number((movie.vote_average ?? 0).toFixed(1)),
+    mediaType: mediaType === "tv" ? "tv" : "movie"
   };
 }
 
@@ -233,7 +257,7 @@ async function applyFanartFallbackToSearchResults(
   );
 }
 
-function getFallbackMovies(categoryKey: string): MovieSummary[] {
+function getFallbackMovies(categoryKey: string, mediaType: "movie" | "tv"): MovieSummary[] {
   const fallback = FALLBACK_MOVIES_BY_CATEGORY[categoryKey] ?? [];
 
   return fallback.map((movie) => ({
@@ -243,11 +267,12 @@ function getFallbackMovies(categoryKey: string): MovieSummary[] {
     posterPath: movie.posterPath,
     backdropPath: null,
     releaseDate: movie.releaseDate,
-    rating: movie.rating
+    rating: movie.rating,
+    mediaType
   }));
 }
 
-async function fetchTmdb(endpoint: string): Promise<MovieSummary[]> {
+async function fetchTmdb(endpoint: string, mediaType: "movie" | "tv"): Promise<MovieSummary[]> {
   const authConfig = getTmdbAuthConfig();
   let url = `${TMDB_BASE_URL}${endpoint}`;
 
@@ -267,7 +292,7 @@ async function fetchTmdb(endpoint: string): Promise<MovieSummary[]> {
   }
 
   const data = (await response.json()) as TmdbResponse;
-  const movies = data.results.map(toMovieSummary).slice(0, 16);
+  const movies = data.results.map((m) => toMovieSummary(m, mediaType)).slice(0, 16);
   return applyFanartFallbackToMovies(movies);
 }
 
@@ -275,17 +300,20 @@ export async function getCategoryMovies(): Promise<CategoryWithMovies[]> {
   const results = await Promise.all(
     CATEGORY_CONFIGS.map(async (category) => {
       try {
-        const movies = await fetchTmdb(category.endpoint);
+        const movies = await fetchTmdb(category.endpoint, category.mediaType);
+        const finalMovies = category.key.includes("top-10") ? movies.slice(0, 10) : movies;
         return {
           key: category.key,
           label: category.label,
-          movies: movies.length > 0 ? movies : getFallbackMovies(category.key)
+          mediaType: category.mediaType,
+          movies: finalMovies.length > 0 ? finalMovies : getFallbackMovies(category.key, category.mediaType).slice(0, 10)
         };
       } catch {
         return {
           key: category.key,
           label: category.label,
-          movies: getFallbackMovies(category.key)
+          mediaType: category.mediaType,
+          movies: getFallbackMovies(category.key, category.mediaType)
         };
       }
     })
@@ -294,17 +322,6 @@ export async function getCategoryMovies(): Promise<CategoryWithMovies[]> {
   return results;
 }
 
-export async function searchMoviesByTitle(query: string): Promise<MovieSummary[]> {
-  const trimmedQuery = query.trim();
-
-  if (!trimmedQuery) {
-    return [];
-  }
-
-  const encodedQuery = encodeURIComponent(trimmedQuery);
-  const endpoint = `/search/movie?query=${encodedQuery}&include_adult=false&language=en-US&page=1`;
-  return fetchTmdb(endpoint).slice(0, 8);
-}
 
 type TmdbSearchResponse = {
   results: Array<{
@@ -330,6 +347,14 @@ type TmdbDetailsResponse = {
   release_date?: string;
   first_air_date?: string;
   vote_average: number;
+  genres?: Array<{ id: number; name: string }>;
+  runtime?: number;
+  tagline?: string;
+  number_of_seasons?: number;
+  seasons?: Array<{
+    season_number: number;
+    episode_count: number;
+  }>;
 };
 
 const SEARCH_RESULT_LIMIT = 10;
@@ -342,7 +367,7 @@ const FALLBACK_SEARCH_RESULTS: Record<"movie" | "tv", SearchResult[]> = {
       id: 315635,
       title: "Spider-Man: Homecoming",
       overview: "Peter Parker balances high school life with being Spider-Man.",
-      posterPath: null,
+      posterPath: "https://m.media-amazon.com/images/M/MV5BNTk4ODQ1MzY5NF5BMl5BanBnXkFtZTgwNjcxMTU4OTE@._V1_.jpg",
       backdropPath: null,
       releaseDate: "2017-07-05",
       rating: 7.3,
@@ -392,7 +417,7 @@ const FALLBACK_SEARCH_RESULTS: Record<"movie" | "tv", SearchResult[]> = {
       id: 155,
       title: "The Dark Knight",
       overview: "Batman faces his most chaotic enemy, the Joker.",
-      posterPath: null,
+      posterPath: "https://m.media-amazon.com/images/M/MV5BMTMxNTMwODM0NF5BMl5BanBnXkFtZTcwODAyMTk2Mw@@._V1_.jpg",
       backdropPath: null,
       releaseDate: "2008-07-16",
       rating: 9.0,
@@ -401,10 +426,30 @@ const FALLBACK_SEARCH_RESULTS: Record<"movie" | "tv", SearchResult[]> = {
   ],
   tv: [
     {
+      id: 124364,
+      title: "From",
+      overview: "Unravel the mystery of a city in middle America that traps all those who enter.",
+      posterPath: "https://m.media-amazon.com/images/M/MV5BMzYyZGY1YWUtN2I4ZC00MjljLWI4YjQtY2Y0YjZhN2ZkYzUzXkEyXkFqcGdeQXVyMTEyMjM2NDc2._V1_.jpg",
+      backdropPath: null,
+      releaseDate: "2022-02-20",
+      rating: 8.2,
+      mediaType: "tv"
+    },
+    {
+      id: 76054,
+      title: "Dark",
+      overview: "A family saga with a supernatural twist, set in a German town.",
+      posterPath: "https://m.media-amazon.com/images/M/MV5BMTEyNDM5NjgzOTdeQTJeQWpwZ15BbWU4MDgyMzA2NjEx._V1_.jpg",
+      backdropPath: null,
+      releaseDate: "2017-06-27",
+      rating: 8.4,
+      mediaType: "tv"
+    },
+    {
       id: 1396,
       title: "Breaking Bad",
       overview: "A chemistry teacher turns to making meth after a diagnosis.",
-      posterPath: null,
+      posterPath: "https://m.media-amazon.com/images/M/MV5BMjhiMzgxZTctNDc1Ni00OTIxLTgwMTUtMTYzOTlhMzExMzkwXkEyXkFqcGdeQXVyNzkwMjQ5NzM@._V1_.jpg",
       backdropPath: null,
       releaseDate: "2008-01-20",
       rating: 9.5,
@@ -468,7 +513,7 @@ export function getFallbackSearchResults(
       item,
       score: scoreSearchResult(item, q)
     }))
-    .filter(({ score }) => score >= 0.28)
+    .filter(({ score }) => score >= 0.15)
     .sort((left, right) => right.score - left.score)
     .map(({ item }) => item)
     .slice(0, SEARCH_RESULT_LIMIT);
@@ -610,10 +655,11 @@ function rankAndDedupeResults(results: SearchResult[], query: string): SearchRes
 async function fetchTmdbSearchResults(
   authConfig: TmdbAuthConfig,
   mediaType: "movie" | "tv",
-  query: string
+  query: string,
+  language: string = "en-US"
 ): Promise<SearchResult[]> {
   const encodedQuery = encodeURIComponent(query);
-  const endpoint = `/search/${mediaType}?query=${encodedQuery}&include_adult=false&language=en-US&page=1`;
+  const endpoint = `/search/${mediaType}?query=${encodedQuery}&include_adult=false&language=${language}&page=1`;
   let url = `${TMDB_BASE_URL}${endpoint}`;
 
   if (authConfig.appendApiKeyToUrl) {
@@ -625,7 +671,7 @@ async function fetchTmdbSearchResults(
   const response = await fetch(url, {
     headers: authConfig.headers,
     next: { revalidate: 1200 },
-    signal: AbortSignal.timeout(8000)
+    signal: AbortSignal.timeout(4000)
   });
 
   if (!response.ok) {
@@ -664,7 +710,7 @@ async function fetchTmdbDetailsById(
     const response = await fetch(url, {
       headers: authConfig.headers,
       next: { revalidate: 3600 },
-      signal: AbortSignal.timeout(8000)
+      signal: AbortSignal.timeout(4000)
     });
 
     if (!response.ok) {
@@ -681,7 +727,15 @@ async function fetchTmdbDetailsById(
       backdropPath: data.backdrop_path,
       releaseDate: data.release_date ?? data.first_air_date ?? "",
       rating: Number((data.vote_average ?? 0).toFixed(1)),
-      mediaType
+      mediaType,
+      genres: data.genres?.map((g) => g.name),
+      runtime: data.runtime,
+      tagline: data.tagline,
+      numberOfSeasons: data.number_of_seasons,
+      seasons: data.seasons?.map((s) => ({
+        seasonNumber: s.season_number,
+        episodeCount: s.episode_count
+      }))
     };
   } catch {
     return null;
@@ -723,10 +777,11 @@ export async function getMediaByTmdbIds(
 async function safeFetchTmdbSearchResults(
   authConfig: TmdbAuthConfig,
   mediaType: "movie" | "tv",
-  query: string
+  query: string,
+  language: string = "en-US"
 ): Promise<SearchResult[]> {
   try {
-    return await fetchTmdbSearchResults(authConfig, mediaType, query);
+    return await fetchTmdbSearchResults(authConfig, mediaType, query, language);
   } catch {
     return [];
   }
@@ -734,7 +789,8 @@ async function safeFetchTmdbSearchResults(
 
 export async function searchMediaByTitle(
   query: string,
-  mediaType: "movie" | "tv"
+  mediaType: "movie" | "tv",
+  language: string = "en-US"
 ): Promise<SearchResult[]> {
   const trimmedQuery = query.trim();
 
@@ -753,7 +809,8 @@ export async function searchMediaByTitle(
   const primaryResults = await safeFetchTmdbSearchResults(
     authConfig,
     mediaType,
-    trimmedQuery
+    trimmedQuery,
+    language
   );
 
   let mergedResults = [...primaryResults];
@@ -780,10 +837,18 @@ export async function searchMediaByTitle(
   }
 
   const results = rankAndDedupeResults(mergedResults, trimmedQuery);
-
-  if (mediaType === "movie") {
-    return applyFanartFallbackToSearchResults(results);
+  
+  // Only attempt to hydrate with full details if we have a live connection
+  // Otherwise, we'd just wait for another timeout.
+  try {
+    const hydratedResults = await Promise.race([
+      getMediaByTmdbIds(results.map((r) => r.id), mediaType),
+      new Promise<SearchResult[]>((_, reject) => 
+        setTimeout(() => reject(new Error("Hydration timeout")), 3000)
+      )
+    ]);
+    return hydratedResults.length > 0 ? hydratedResults : results;
+  } catch {
+    return results;
   }
-
-  return results;
 }
