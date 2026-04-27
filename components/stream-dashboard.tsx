@@ -429,7 +429,7 @@ export default function StreamDashboard({
         <div className="flex items-center gap-8">
           <div className="flex flex-col leading-none">
             <div className="text-3xl font-black tracking-tighter text-[#E50914]">
-              desimaovies
+              desi_movies
             </div>
             <div className="mt-1 text-[10px] font-medium uppercase tracking-[0.3em] text-white/60">
               made by vaibhav ghoshi
