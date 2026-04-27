@@ -125,6 +125,9 @@ export default function StreamDashboard({
   categories,
   fallbackMovieId,
 }: StreamDashboardProps) {
+  const INTRO_POPUP_MS = 1500;
+  const INTRO_POPUP_EXPIRY_KEY = "desi_intro_popup_expiry";
+  const [showIntroPopup, setShowIntroPopup] = useState(true);
   const [selectedMediaType, setSelectedMediaType] =
     useState<MediaType>("movie");
   const [selectedMovieId, setSelectedMovieId] =
@@ -186,6 +189,42 @@ export default function StreamDashboard({
   }, [activeSection]);
 
   // Load history and list from local storage
+  useEffect(() => {
+    const now = Date.now();
+    let timeoutId: number | undefined;
+
+    try {
+      const savedExpiry = Number(
+        window.sessionStorage.getItem(INTRO_POPUP_EXPIRY_KEY) ?? "0",
+      );
+      const expiry = savedExpiry > now ? savedExpiry : now + INTRO_POPUP_MS;
+
+      if (savedExpiry <= now) {
+        window.sessionStorage.setItem(INTRO_POPUP_EXPIRY_KEY, String(expiry));
+      }
+
+      const remainingMs = Math.max(0, expiry - now);
+      if (remainingMs === 0) {
+        setShowIntroPopup(false);
+        return;
+      }
+
+      timeoutId = window.setTimeout(() => {
+        setShowIntroPopup(false);
+      }, remainingMs);
+    } catch {
+      timeoutId = window.setTimeout(() => {
+        setShowIntroPopup(false);
+      }, INTRO_POPUP_MS);
+    }
+
+    return () => {
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     const savedList = localStorage.getItem("myList");
     if (savedList) setMyList(JSON.parse(savedList));
@@ -422,6 +461,19 @@ export default function StreamDashboard({
 
   return (
     <div className="relative min-h-screen bg-[#141414]">
+      {showIntroPopup && (
+        <div className="pointer-events-none fixed right-3 top-3 z-[200] sm:right-4 sm:top-4">
+          <div className="rounded-xl border border-white/20 bg-zinc-900/95 px-4 py-3 text-left shadow-2xl">
+            <p className="text-sm font-bold uppercase tracking-wide text-[#E50914] sm:text-base">
+              desi media
+            </p>
+            <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-white/75 sm:text-xs sm:tracking-[0.24em]">
+              made by vaibhav ghoshi
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Navbar */}
       <nav
         className={`fixed top-0 z-[100] w-full px-3 py-3 transition-all duration-500 md:px-12 md:py-4 ${isNavbarBlack || isPlayerOpen ? "bg-[#141414]/95 backdrop-blur-md shadow-2xl" : "bg-transparent bg-gradient-to-b from-black/80 to-transparent"}`}
