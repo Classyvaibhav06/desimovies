@@ -154,11 +154,20 @@ export async function GET(request: Request) {
   const useCloseMatchFilter =
     searchParams.get("closeMatch") === "1" || searchParams.get("startsWith") === "1";
 
-  if (query.length < 2) {
+  const isTmdbId = /^\d+$/.test(query);
+
+  if (!isTmdbId && query.length < 2) {
     return NextResponse.json({ results: [], message: "Type at least 2 characters." });
   }
 
   try {
+    if (isTmdbId) {
+      const idResults = await getMediaByTmdbIds([Number(query)], mediaType);
+      if (idResults.length > 0) {
+        return NextResponse.json({ results: idResults });
+      }
+    }
+
     const shouldUseAiIdLookup = !useCloseMatchFilter;
     let results = await searchMediaByTitle(query, mediaType, lang);
 

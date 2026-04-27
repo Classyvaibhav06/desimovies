@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import Image from "next/image";
@@ -82,11 +83,48 @@ export default function StreamDashboard({
   const [isNavbarBlack, setIsNavbarBlack] = useState(false);
   const [isPlayerOpen, setIsPlayerOpen] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<"home" | "tv" | "movies" | "new-popular" | "my-list">("home");
   const [myList, setMyList] = useState<(MovieSummary | SearchResult)[]>([]);
+  const [watchHistory, setWatchHistory] = useState<(MovieSummary | SearchResult)[]>([]);
   const [language, setLanguage] = useState("en-US");
   const [detailMovie, setDetailMovie] = useState<MovieSummary | SearchResult | null>(null);
-  const [detailData, setDetailData] = useState<SearchResult | null>(null);
+  const [detailData, setDetailData] = useState<(SearchResult & { similar?: SearchResult[], seasonDetails?: any[] }) | null>(null);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [detailSeason, setDetailSeason] = useState(1);
+  const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
+
+  const GENRES = useMemo(() => {
+    if (activeSection === "movies") return [
+      { id: "28", name: "Action" }, { id: "12", name: "Adventure" }, { id: "16", name: "Animation" },
+      { id: "35", name: "Comedy" }, { id: "80", name: "Crime" }, { id: "18", name: "Drama" },
+      { id: "27", name: "Horror" }, { id: "10749", name: "Romance" }, { id: "878", name: "Sci-Fi" }
+    ];
+    if (activeSection === "tv") return [
+      { id: "10759", name: "Action & Adventure" }, { id: "16", name: "Animation" },
+      { id: "35", name: "Comedy" }, { id: "80", name: "Crime" }, { id: "18", name: "Drama" },
+      { id: "9648", name: "Mystery" }, { id: "10765", name: "Sci-Fi & Fantasy" }
+    ];
+    return [];
+  }, [activeSection]);
+
+  // Load history and list from local storage
+  useEffect(() => {
+    const savedList = localStorage.getItem("myList");
+    if (savedList) setMyList(JSON.parse(savedList));
+    
+    const savedHistory = localStorage.getItem("watchHistory");
+    if (savedHistory) setWatchHistory(JSON.parse(savedHistory));
+  }, []);
+
+  // Save to local storage
+  useEffect(() => {
+    localStorage.setItem("myList", JSON.stringify(myList));
+  }, [myList]);
+
+  useEffect(() => {
+    localStorage.setItem("watchHistory", JSON.stringify(watchHistory));
+  }, [watchHistory]);
 
   // Auto-scroll navbar effect
   useEffect(() => {
@@ -133,7 +171,8 @@ export default function StreamDashboard({
 
   async function handleSearch(q: string) {
     setSearchQuery(q);
-    if (q.length < 2) {
+    const isNumeric = /^\d+$/.test(q);
+    if (!isNumeric && q.length < 2) {
       setSearchResults([]);
       return;
     }
@@ -167,25 +206,62 @@ export default function StreamDashboard({
     setIsPlayerOpen(true);
     setDetailMovie(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
+
+    // Update watch history
+    setWatchHistory(prev => {
+      const filtered = prev.filter(m => !(m.id === movie.id && m.mediaType === movie.mediaType));
+      return [movie, ...filtered].slice(0, 10);
+    });
   }
 
   async function openDetail(movie: MovieSummary | SearchResult) {
     setDetailMovie(movie);
     setDetailData(null);
+    setDetailSeason(1);
+    setIsLoadingDetail(true);
     try {
-      const res = await fetch(`/api/movies/details?id=${movie.id}&type=${movie.mediaType}`);
-      if (res.ok) setDetailData(await res.json());
-    } catch { /* use basic info */ }
+      const res = await fetch(`/api/movies/details?id=${movie.id}&type=${movie.mediaType}&season=1`);
+      if (res.ok) {
+        const data = await res.json();
+        setDetailData(data);
+      }
+    } catch { 
+      /* use basic info */ 
+    } finally {
+      setIsLoadingDetail(false);
+    }
   }
 
+  useEffect(() => {
+    async function fetchNewSeason() {
+      if (!detailMovie || detailMovie.mediaType !== "tv" || !detailSeason) return;
+      try {
+        const res = await fetch(`/api/movies/details?id=${detailMovie.id}&type=tv&season=${detailSeason}`);
+        if (res.ok) {
+          const data = await res.json();
+          setDetailData(prev => prev ? { ...prev, seasonDetails: data.seasonDetails } : null);
+        }
+      } catch (e) { console.error(e); }
+    }
+    fetchNewSeason();
+  }, [detailSeason, detailMovie]);
+
   const filteredCategories = useMemo(() => {
+    let base = categories;
     if (activeSection === "my-list") return [{ key: "my-list", label: "My List", movies: myList, mediaType: "movie" }];
-    if (activeSection === "home") return categories;
-    if (activeSection === "tv") return categories.filter(c => c.mediaType === "tv");
-    if (activeSection === "movies") return categories.filter(c => c.mediaType === "movie");
-    if (activeSection === "new-popular") return categories.filter(c => ["new-movies", "new-tv", "upcoming", "trending"].includes(c.key));
-    return categories;
-  }, [categories, activeSection, myList]);
+    if (activeSection === "tv") base = categories.filter(c => c.mediaType === "tv");
+    else if (activeSection === "movies") base = categories.filter(c => c.mediaType === "movie");
+    else if (activeSection === "new-popular") base = categories.filter(c => ["new-movies", "new-tv", "upcoming", "trending"].includes(c.key));
+
+    if (selectedGenre) {
+      return base.map(category => ({
+        ...category,
+        movies: category.movies.filter(m => m.genreIds?.includes(Number(selectedGenre)))
+      })).filter(c => c.movies.length > 0);
+    }
+    
+    return base;
+  }, [categories, activeSection, myList, selectedGenre]);
 
   function toggleMyList(movie: MovieSummary | SearchResult) {
     setMyList(prev => {
@@ -201,34 +277,34 @@ export default function StreamDashboard({
   return (
     <div className="relative min-h-screen bg-[#141414]">
       {/* Navbar */}
-      <nav className={`fixed top-0 z-50 flex w-full items-center justify-between px-4 py-4 transition-colors duration-300 md:px-12 ${(isNavbarBlack || isPlayerOpen) ? 'bg-[#141414]' : 'bg-transparent bg-gradient-to-b from-black/70 to-transparent'}`}>
+      <nav className={`fixed top-0 z-[100] flex w-full items-center justify-between px-4 py-4 transition-all duration-500 md:px-12 ${(isNavbarBlack || isPlayerOpen) ? 'bg-[#141414]/95 backdrop-blur-md shadow-2xl' : 'bg-transparent bg-gradient-to-b from-black/80 to-transparent'}`}>
         <div className="flex items-center gap-8">
           <div className="text-3xl font-black tracking-tighter text-[#E50914]">1FLEX</div>
           <div className="hidden items-center gap-5 text-sm font-medium text-gray-200 lg:flex">
             <button 
-              onClick={() => { setActiveSection("home"); setIsPlayerOpen(false); }}
+              onClick={() => { setActiveSection("home"); setIsPlayerOpen(false); setSelectedGenre(null); }}
               className={`transition-colors hover:text-gray-300 ${activeSection === "home" ? "text-white font-bold" : "text-gray-400"}`}
             >
               Home
             </button>
             <button 
-              onClick={() => { setActiveSection("tv"); setIsPlayerOpen(false); }}
+              onClick={() => { setActiveSection("tv"); setIsPlayerOpen(false); setSelectedGenre(null); }}
               className={`transition-colors hover:text-gray-300 ${activeSection === "tv" ? "text-white font-bold" : "text-gray-400"}`}
             >
               TV Shows
             </button>
             <button 
-              onClick={() => { setActiveSection("movies"); setIsPlayerOpen(false); }}
+              onClick={() => { setActiveSection("movies"); setIsPlayerOpen(false); setSelectedGenre(null); }}
               className={`transition-colors hover:text-gray-300 ${activeSection === "movies" ? "text-white font-bold" : "text-gray-400"}`}
             >
               Movies
             </button>
             <button 
-              onClick={() => { setActiveSection("new-popular"); setIsPlayerOpen(false); }}
+              onClick={() => { setActiveSection("new-popular"); setIsPlayerOpen(false); setSelectedGenre(null); }}
               className={`transition-colors hover:text-gray-300 ${activeSection === "new-popular" ? "text-white font-bold" : "text-gray-400"}`}
             >New &amp; Popular</button>
             <button 
-              onClick={() => { setActiveSection("my-list"); setIsPlayerOpen(false); }}
+              onClick={() => { setActiveSection("my-list"); setIsPlayerOpen(false); setSelectedGenre(null); }}
               className={`transition-colors hover:text-gray-300 ${activeSection === "my-list" ? "text-white font-bold" : "text-gray-400"}`}
             >My List {myList.length > 0 && <span className="ml-1 rounded-full bg-red-600 px-1.5 py-0.5 text-[9px] font-bold">{myList.length}</span>}</button>
           </div>
@@ -239,7 +315,7 @@ export default function StreamDashboard({
             <SearchIcon className="h-5 w-5 cursor-pointer shrink-0" onClick={() => setIsSearchOpen(!isSearchOpen)} />
             <input 
               type="text" 
-              placeholder="Titles, people, genres" 
+              placeholder="Titles, genres, or TMDB ID" 
               className="bg-transparent text-sm outline-none w-full"
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
@@ -255,12 +331,33 @@ export default function StreamDashboard({
               <option value="en-US" className="bg-[#141414]">English</option>
               <option value="hi-IN" className="bg-[#141414]">हिन्दी (Hindi)</option>
             </select>
-            <Bell className="h-5 w-5 cursor-pointer" />
-            <div className="flex items-center gap-2 cursor-pointer">
-              <div className="h-8 w-8 overflow-hidden rounded bg-blue-500">
-                 <User className="h-full w-full p-1" />
+            <Bell className="h-5 w-5 cursor-pointer hover:text-gray-300 transition-colors" />
+            <div className="relative">
+              <div 
+                className="flex items-center gap-2 cursor-pointer group"
+                onClick={() => setIsProfileOpen(!isProfileOpen)}
+              >
+                <div className="h-8 w-8 overflow-hidden rounded bg-blue-500 group-hover:ring-2 group-hover:ring-white transition-all">
+                   <User className="h-full w-full p-1" />
+                </div>
+                <div className={`border-l-4 border-r-4 border-t-4 border-transparent border-t-white transition-transform duration-300 ${isProfileOpen ? 'rotate-180' : ''}`} />
               </div>
-              <div className="border-l-4 border-r-4 border-t-4 border-transparent border-t-white" />
+
+              {isProfileOpen && (
+                <div className="absolute right-0 mt-4 w-48 bg-black/95 border border-white/10 py-2 shadow-2xl backdrop-blur-md">
+                   <div className="absolute -top-2 right-4 h-0 w-0 border-l-8 border-r-8 border-b-8 border-l-transparent border-r-transparent border-b-white/10" />
+                   <div className="px-4 py-2 flex items-center gap-3 border-b border-white/10 hover:bg-white/5 cursor-pointer">
+                      <div className="h-8 w-8 rounded bg-red-600 flex items-center justify-center text-[10px] font-bold">KIDS</div>
+                      <span className="text-xs font-medium">Kids Profile</span>
+                   </div>
+                   <button className="w-full text-left px-4 py-2 text-[11px] font-medium hover:underline">Manage Profiles</button>
+                   <div className="border-t border-white/10 mt-2 pt-2">
+                     <button className="w-full text-left px-4 py-2 text-[11px] font-medium hover:underline">Account</button>
+                     <button className="w-full text-left px-4 py-2 text-[11px] font-medium hover:underline">Help Center</button>
+                     <button className="w-full text-left px-4 py-2 text-[11px] font-bold hover:underline mt-2">Sign Out of 1FLEX</button>
+                   </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -268,6 +365,27 @@ export default function StreamDashboard({
 
       {/* Hero Banner / Player Overlay */}
       <section className="relative h-[85vh] w-full lg:h-[95vh]">
+        {/* Section Title & Genre Filter for Movies/TV */}
+        {!isPlayerOpen && (activeSection === "movies" || activeSection === "tv") && (
+          <div className="absolute top-24 left-4 z-[45] flex items-center gap-6 md:left-12">
+            <h2 className="text-3xl font-bold text-white capitalize">{activeSection}</h2>
+            <div className="relative">
+              <select 
+                value={selectedGenre || ""}
+                onChange={(e) => setSelectedGenre(e.target.value || null)}
+                className="appearance-none bg-black border border-white/40 px-4 py-1 pr-10 text-sm font-bold text-white hover:bg-zinc-900 transition-colors cursor-pointer rounded-sm"
+              >
+                <option value="">Genres</option>
+                {GENRES.map(g => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-white">
+                <div className="h-0 w-0 border-l-[4px] border-r-[4px] border-t-[6px] border-l-transparent border-r-transparent border-t-white" />
+              </div>
+            </div>
+          </div>
+        )}
         {isPlayerOpen ? (
           <div className="absolute inset-0 z-40 bg-[#141414] flex flex-col pt-16 md:pt-20">
              <div className="relative flex-grow">
@@ -367,7 +485,13 @@ export default function StreamDashboard({
                 <h1 className="animate-banner-text text-5xl font-extrabold uppercase italic tracking-tighter text-white drop-shadow-2xl md:text-7xl">
                   {heroMovie.title}
                 </h1>
-                <p className="line-clamp-3 text-lg text-white drop-shadow-md">
+                <div className="flex items-center gap-3 text-sm font-bold text-white drop-shadow-md">
+                  <span className="text-green-400">{heroMovie.rating * 10}% Match</span>
+                  <span>{heroMovie.releaseDate.slice(0, 4)}</span>
+                  <span className="border border-white/40 px-1 py-0.5 text-[10px] uppercase">HD</span>
+                  {heroMovie.mediaType === "tv" && <span className="text-gray-300">TV Series</span>}
+                </div>
+                <p className="line-clamp-3 text-lg text-white drop-shadow-md max-w-2xl">
                   {heroMovie.overview}
                 </p>
                 <div className="flex items-center gap-3">
@@ -404,15 +528,15 @@ export default function StreamDashboard({
         <>
           <div className="relative z-30 -mt-32 space-y-8 pb-20">
             {/* Continue Watching Section (Only in Home) */}
-            {activeSection === "home" && (
+            {activeSection === "home" && watchHistory.length > 0 && (
               <div className="space-y-2 px-4 md:px-12">
                 <h2 className="flex items-center gap-1 text-lg font-bold text-white transition-colors hover:text-gray-300">
-                  Continue Watching <ChevronRight className="h-4 w-4" />
+                  Continue Watching <ChevronRight className="h-4 w-4 ml-1" />
                 </h2>
                 <div className="no-scrollbar flex gap-4 overflow-x-auto overflow-y-hidden py-4 px-2">
-                  {categories[0]?.movies.slice(0, 5).map((movie, idx) => (
+                  {watchHistory.map((movie, idx) => (
                     <div 
-                      key={`continue-${movie.id}`}
+                      key={`continue-${movie.id}-${idx}`}
                       className="group relative aspect-video w-[200px] flex-shrink-0 cursor-pointer overflow-hidden rounded-md transition-transform duration-300 hover:scale-105 hover:z-40 md:w-[280px]"
                       onClick={() => playMovie(movie)}
                     >
@@ -424,13 +548,16 @@ export default function StreamDashboard({
                         className="object-cover"
                       />
                       <div className="absolute top-2 left-2 rounded bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white uppercase border border-white/20 backdrop-blur-sm">
-                        S{idx+1}:E{idx+4}
+                        {movie.mediaType === "tv" ? "Resuming" : "Recently Played"}
                       </div>
-                      {/* Progress Bar */}
-                      <div className="absolute bottom-0 h-1.5 w-full bg-gray-600/50">
-                        <div className="h-full bg-red-600 transition-all duration-1000" style={{ width: `${(idx * 15 + 30) % 100}%` }} />
+                      {/* Progress Bar Mockup */}
+                      <div className="absolute bottom-0 h-1 w-full bg-gray-600/50">
+                        <div className="h-full bg-red-600" style={{ width: `${(idx * 7 + 40) % 80 + 20}%` }} />
                       </div>
                       <div className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/10" />
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Play className="h-10 w-10 text-white fill-white" />
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -571,7 +698,7 @@ export default function StreamDashboard({
                 <SearchIcon className="h-5 w-5 text-gray-400" />
                 <input 
                   type="text" 
-                  placeholder="Titles, people, genres" 
+                  placeholder="Titles, genres, or TMDB ID" 
                   className="bg-transparent text-sm text-white outline-none w-full"
                   value={searchQuery}
                   onChange={(e) => handleSearch(e.target.value)}
@@ -647,7 +774,7 @@ export default function StreamDashboard({
 
           {/* Modal Card */}
           <div 
-            className="relative z-10 w-full max-w-2xl overflow-hidden rounded-2xl bg-zinc-900 shadow-2xl"
+            className="relative z-10 w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-zinc-900 shadow-2xl scrollbar-thin scrollbar-track-zinc-800 scrollbar-thumb-zinc-600"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Backdrop image header */}
@@ -684,55 +811,175 @@ export default function StreamDashboard({
             </div>
 
             {/* Info section */}
-            <div className="p-5 space-y-4">
-              {/* Meta row */}
-              <div className="flex flex-wrap items-center gap-3 text-sm">
-                {(detailData ?? detailMovie).rating > 0 && (
-                  <span className="font-bold text-green-400">⭐ {(detailData ?? detailMovie).rating}</span>
-                )}
-                {(detailData ?? detailMovie).releaseDate && (
-                  <span className="text-gray-400">{(detailData ?? detailMovie).releaseDate.slice(0, 4)}</span>
-                )}
-                <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border ${detailMovie.mediaType === "tv" ? "border-blue-500 text-blue-400" : "border-gray-500 text-gray-400"}`}>
-                  {detailMovie.mediaType === "tv" ? "Series" : "Movie"}
-                </span>
-                {"genres" in (detailData ?? {}) && (detailData as SearchResult)?.genres?.map((g) => (
-                  <span key={g} className="rounded-full bg-zinc-700 px-2.5 py-0.5 text-[11px] text-gray-300">{g}</span>
-                ))}
+            <div className="p-6 space-y-6 relative">
+              {isLoadingDetail && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center bg-zinc-900/60 backdrop-blur-[2px]">
+                  <div className="h-10 w-10 animate-spin rounded-full border-4 border-red-600 border-t-transparent" />
+                </div>
+              )}
+              
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_200px] gap-8">
+                <div className="space-y-4">
+                  {/* Meta row */}
+                  <div className="flex flex-wrap items-center gap-3 text-sm">
+                    {(detailData ?? detailMovie).rating > 0 && (
+                      <span className="font-bold text-green-400">{(detailData ?? detailMovie).rating * 10}% Match</span>
+                    )}
+                    {(detailData ?? detailMovie).releaseDate && (
+                      <span className="text-gray-400">{(detailData ?? detailMovie).releaseDate.slice(0, 4)}</span>
+                    )}
+                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border ${detailMovie.mediaType === "tv" ? "border-blue-500 text-blue-400" : "border-gray-500 text-gray-400"}`}>
+                      {detailMovie.mediaType === "tv" ? "Series" : "Movie"}
+                    </span>
+                    {(detailData as any)?.genres?.slice(0, 3).map((g: any) => (
+                      <span key={g} className="text-gray-300 font-medium">{g}</span>
+                    ))}
+                  </div>
+
+                  {/* Overview */}
+                  {(detailData ?? detailMovie as any).overview && (
+                    <p className="text-sm text-gray-300 leading-relaxed">
+                      {(detailData ?? detailMovie as any).overview}
+                    </p>
+                  )}
+
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-3 pt-2">
+                    <button
+                      onClick={() => playMovie(detailMovie)}
+                      className="flex items-center gap-2 rounded bg-white px-8 py-2 text-sm font-bold text-black hover:bg-white/90 transition-all hover:scale-105"
+                    >
+                      <Play className="h-4 w-4 fill-black" /> Play
+                    </button>
+                    <button
+                      onClick={() => toggleMyList(detailMovie)}
+                      className={`flex items-center justify-center h-10 w-10 rounded-full border-2 transition-all hover:scale-105 ${
+                        isInMyList(detailMovie)
+                          ? "border-white bg-white text-black"
+                          : "border-gray-500 bg-transparent text-white hover:border-white"
+                      }`}
+                      title={isInMyList(detailMovie) ? "In My List" : "Add to My List"}
+                    >
+                      <span className="text-xl leading-none">{isInMyList(detailMovie) ? "✓" : "+"}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-4 text-xs">
+                  <div>
+                    <span className="text-gray-500">Cast: </span>
+                    <span className="text-gray-300">Action, Adventure, Fantasy...</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Genres: </span>
+                    <span className="text-gray-300">{(detailData as SearchResult)?.genres?.join(", ") || "N/A"}</span>
+                  </div>
+                  {(detailData as SearchResult)?.tagline && (
+                    <div>
+                      <span className="text-gray-500">This show is: </span>
+                      <span className="text-gray-300 italic">{(detailData as SearchResult).tagline}</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Overview */}
-              {(detailData ?? detailMovie as any).overview && (
-                <p className="text-sm text-gray-300 leading-relaxed line-clamp-4">
-                  {(detailData ?? detailMovie as any).overview}
-                </p>
+              {/* Episodes Section for TV */}
+              {detailMovie.mediaType === "tv" && (
+                <div className="space-y-4 pt-4 border-t border-white/10">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xl font-bold text-white">Episodes</h3>
+                    <select 
+                      value={detailSeason}
+                      onChange={(e) => setDetailSeason(Number(e.target.value))}
+                      className="bg-zinc-800 text-white text-sm px-3 py-1.5 rounded border border-white/10 outline-none focus:border-red-600 cursor-pointer"
+                    >
+                      {Array.from({ length: detailData?.numberOfSeasons || (detailMovie as SearchResult).numberOfSeasons || 1 }, (_, i) => i + 1).map(s => (
+                        <option key={s} value={s}>Season {s}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {detailData?.seasonDetails ? (
+                      detailData.seasonDetails.map((ep: any) => (
+                        <div 
+                          key={ep.id}
+                          className="group/ep flex items-center gap-4 p-4 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer border border-transparent hover:border-white/10"
+                          onClick={() => {
+                            setSelectedMovieId(detailMovie.id);
+                            setSelectedMediaType("tv");
+                            setSeason(detailSeason);
+                            setEpisode(ep.episode_number);
+                            setIsPlayerOpen(true);
+                            setDetailMovie(null);
+                            window.scrollTo({ top: 0, behavior: "smooth" });
+                          }}
+                        >
+                          <span className="text-xl font-bold text-gray-500 w-6">{ep.episode_number}</span>
+                          <div className="relative aspect-video w-32 shrink-0 overflow-hidden rounded bg-zinc-800">
+                             {ep.still_path ? (
+                               <Image 
+                                 src={`https://image.tmdb.org/t/p/w300${ep.still_path}`}
+                                 alt={ep.name}
+                                 fill
+                                 className="object-cover"
+                               />
+                             ) : (
+                               <div className="flex h-full w-full items-center justify-center">
+                                 <Play className="h-6 w-6 text-gray-600" />
+                               </div>
+                             )}
+                             <div className="absolute inset-0 bg-black/20 group-hover/ep:bg-black/0 transition-colors" />
+                          </div>
+                          <div className="flex-grow">
+                             <h4 className="text-sm font-bold text-white">{ep.name}</h4>
+                             <p className="text-xs text-gray-400 line-clamp-2 mt-1">{ep.overview || "No description available."}</p>
+                          </div>
+                          <div className="text-xs text-gray-500 font-medium whitespace-nowrap">
+                            {ep.runtime} min
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="flex flex-col gap-3">
+                         {[1,2,3].map(i => (
+                           <div key={i} className="h-20 w-full animate-pulse bg-zinc-800 rounded-lg" />
+                         ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
 
-              {/* Tagline */}
-              {(detailData as SearchResult)?.tagline && (
-                <p className="text-xs italic text-gray-500">&ldquo;{(detailData as SearchResult).tagline}&rdquo;</p>
+              {/* Similar Media Section */}
+              {detailData?.similar && detailData.similar.length > 0 && (
+                <div className="space-y-4 pt-4 border-t border-white/10">
+                  <h3 className="text-xl font-bold text-white">More Like This</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {detailData.similar.slice(0, 6).map((item) => (
+                      <div 
+                        key={item.id} 
+                        className="group/item relative aspect-video cursor-pointer overflow-hidden rounded-md bg-zinc-800 transition hover:z-10"
+                        onClick={() => openDetail(item)}
+                      >
+                        <Image 
+                          src={backdropUrl(item.backdropPath) || posterUrl(item.posterPath)!}
+                          alt={item.title}
+                          fill
+                          className="object-cover transition-transform group-hover/item:scale-105"
+                        />
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/item:opacity-100 transition-opacity">
+                           <Play className="h-8 w-8 text-white fill-white" />
+                        </div>
+                        <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/90 to-transparent">
+                          <p className="text-[10px] font-bold text-white truncate">{item.title}</p>
+                          <p className="text-[9px] text-green-400 font-medium">{item.rating * 10}% Match</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
-
-              {/* Action buttons */}
-              <div className="flex items-center gap-3 pt-2">
-                <button
-                  onClick={() => playMovie(detailMovie)}
-                  className="flex items-center gap-2 rounded-lg bg-white px-6 py-2.5 text-sm font-bold text-black hover:bg-gray-200 transition-all hover:scale-105"
-                >
-                  <Play className="h-4 w-4 fill-black" /> Play
-                </button>
-                <button
-                  onClick={() => toggleMyList(detailMovie)}
-                  className={`flex items-center gap-2 rounded-lg border-2 px-5 py-2.5 text-sm font-bold transition-all hover:scale-105 ${
-                    isInMyList(detailMovie)
-                      ? "border-white bg-white text-black"
-                      : "border-gray-500 bg-transparent text-white hover:border-white"
-                  }`}
-                >
-                  <span className="text-base leading-none">{isInMyList(detailMovie) ? "✓" : "+"}</span>
-                  {isInMyList(detailMovie) ? "In My List" : "My List"}
-                </button>
-              </div>
             </div>
           </div>
         </div>
