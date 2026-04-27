@@ -424,169 +424,224 @@ export default function StreamDashboard({
     <div className="relative min-h-screen bg-[#141414]">
       {/* Navbar */}
       <nav
-        className={`fixed top-0 z-[100] flex w-full items-center justify-between px-4 py-4 transition-all duration-500 md:px-12 ${isNavbarBlack || isPlayerOpen ? "bg-[#141414]/95 backdrop-blur-md shadow-2xl" : "bg-transparent bg-gradient-to-b from-black/80 to-transparent"}`}
+        className={`fixed top-0 z-[100] w-full px-3 py-3 transition-all duration-500 md:px-12 md:py-4 ${isNavbarBlack || isPlayerOpen ? "bg-[#141414]/95 backdrop-blur-md shadow-2xl" : "bg-transparent bg-gradient-to-b from-black/80 to-transparent"}`}
       >
-        <div className="flex items-center gap-8">
-          <div className="flex flex-col leading-none">
-            <div className="text-3xl font-black tracking-tighter text-[#E50914]">
-              desi_movies
+        <div className="flex items-center justify-between gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-8">
+            <div className="flex flex-col leading-none">
+              <div className="text-2xl font-black tracking-tighter text-[#E50914] sm:text-3xl">
+                desi_movies
+              </div>
+              <div className="mt-1 whitespace-nowrap text-[7px] font-medium uppercase tracking-[0.18em] text-white/60 max-[380px]:hidden sm:text-[10px] sm:tracking-[0.3em]">
+                made by vaibhav ghoshi
+              </div>
             </div>
-            <div className="mt-1 text-[10px] font-medium uppercase tracking-[0.3em] text-white/60">
-              made by vaibhav ghoshi
+            <div className="hidden items-center gap-5 text-sm font-medium text-gray-200 lg:flex">
+              <button
+                onClick={() => {
+                  setActiveSection("home");
+                  setIsPlayerOpen(false);
+                  setSelectedGenre(null);
+                }}
+                className={`transition-colors hover:text-gray-300 ${activeSection === "home" ? "text-white font-bold" : "text-gray-400"}`}
+              >
+                Home
+              </button>
+              <button
+                onClick={() => {
+                  setActiveSection("tv");
+                  setIsPlayerOpen(false);
+                  setSelectedGenre(null);
+                }}
+                className={`transition-colors hover:text-gray-300 ${activeSection === "tv" ? "text-white font-bold" : "text-gray-400"}`}
+              >
+                TV Shows
+              </button>
+              <button
+                onClick={() => {
+                  setActiveSection("movies");
+                  setIsPlayerOpen(false);
+                  setSelectedGenre(null);
+                }}
+                className={`transition-colors hover:text-gray-300 ${activeSection === "movies" ? "text-white font-bold" : "text-gray-400"}`}
+              >
+                Movies
+              </button>
+              <button
+                onClick={() => {
+                  setActiveSection("new-popular");
+                  setIsPlayerOpen(false);
+                  setSelectedGenre(null);
+                }}
+                className={`transition-colors hover:text-gray-300 ${activeSection === "new-popular" ? "text-white font-bold" : "text-gray-400"}`}
+              >
+                New &amp; Popular
+              </button>
+              <button
+                onClick={() => {
+                  setActiveSection("my-list");
+                  setIsPlayerOpen(false);
+                  setSelectedGenre(null);
+                }}
+                className={`transition-colors hover:text-gray-300 ${activeSection === "my-list" ? "text-white font-bold" : "text-gray-400"}`}
+              >
+                My List{" "}
+                {myList.length > 0 && (
+                  <span className="ml-1 rounded-full bg-red-600 px-1.5 py-0.5 text-[9px] font-bold">
+                    {myList.length}
+                  </span>
+                )}
+              </button>
             </div>
           </div>
-          <div className="hidden items-center gap-5 text-sm font-medium text-gray-200 lg:flex">
-            <button
-              onClick={() => {
-                setActiveSection("home");
-                setIsPlayerOpen(false);
-                setSelectedGenre(null);
-              }}
-              className={`transition-colors hover:text-gray-300 ${activeSection === "home" ? "text-white font-bold" : "text-gray-400"}`}
+
+          <div className="flex items-center gap-2 text-white sm:gap-4 md:gap-6">
+            <div
+              className={`flex items-center gap-2 border border-white/40 bg-black/40 px-2 py-1 transition-all ${isSearchOpen ? "w-[min(16rem,52vw)] opacity-100 sm:w-64" : "w-9 overflow-hidden sm:w-10"}`}
             >
-              Home
-            </button>
-            <button
-              onClick={() => {
-                setActiveSection("tv");
-                setIsPlayerOpen(false);
-                setSelectedGenre(null);
-              }}
-              className={`transition-colors hover:text-gray-300 ${activeSection === "tv" ? "text-white font-bold" : "text-gray-400"}`}
-            >
-              TV Shows
-            </button>
-            <button
-              onClick={() => {
-                setActiveSection("movies");
-                setIsPlayerOpen(false);
-                setSelectedGenre(null);
-              }}
-              className={`transition-colors hover:text-gray-300 ${activeSection === "movies" ? "text-white font-bold" : "text-gray-400"}`}
-            >
-              Movies
-            </button>
-            <button
-              onClick={() => {
-                setActiveSection("new-popular");
-                setIsPlayerOpen(false);
-                setSelectedGenre(null);
-              }}
-              className={`transition-colors hover:text-gray-300 ${activeSection === "new-popular" ? "text-white font-bold" : "text-gray-400"}`}
-            >
-              New &amp; Popular
-            </button>
-            <button
-              onClick={() => {
-                setActiveSection("my-list");
-                setIsPlayerOpen(false);
-                setSelectedGenre(null);
-              }}
-              className={`transition-colors hover:text-gray-300 ${activeSection === "my-list" ? "text-white font-bold" : "text-gray-400"}`}
-            >
-              My List{" "}
-              {myList.length > 0 && (
-                <span className="ml-1 rounded-full bg-red-600 px-1.5 py-0.5 text-[9px] font-bold">
-                  {myList.length}
-                </span>
+              <SearchIcon
+                className="h-4 w-4 cursor-pointer shrink-0 sm:h-5 sm:w-5"
+                onClick={() => setIsSearchOpen(!isSearchOpen)}
+              />
+              <input
+                type="text"
+                placeholder="Titles, genres, or TMDB ID"
+                className="w-full bg-transparent text-xs outline-none sm:text-sm"
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+              />
+              {searchQuery && (
+                <X
+                  className="h-4 w-4 cursor-pointer"
+                  onClick={() => setSearchQuery("")}
+                />
               )}
-            </button>
+            </div>
+            <div className="flex items-center gap-2 sm:gap-4">
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                className="hidden bg-transparent text-xs text-gray-400 outline-none border border-white/20 px-1 py-0.5 transition-colors hover:text-white sm:block"
+              >
+                <option value="en-US" className="bg-[#141414]">
+                  English
+                </option>
+                <option value="hi-IN" className="bg-[#141414]">
+                  हिन्दी (Hindi)
+                </option>
+              </select>
+              <Bell className="hidden h-5 w-5 cursor-pointer transition-colors hover:text-gray-300 sm:block" />
+              <div className="relative">
+                <div
+                  className="flex items-center gap-2 cursor-pointer group"
+                  onClick={() => setIsProfileOpen(!isProfileOpen)}
+                >
+                  <div className="h-8 w-8 overflow-hidden rounded bg-blue-500 group-hover:ring-2 group-hover:ring-white transition-all">
+                    <User className="h-full w-full p-1" />
+                  </div>
+                  <div
+                    className={`hidden border-l-4 border-r-4 border-t-4 border-transparent border-t-white transition-transform duration-300 sm:block ${isProfileOpen ? "rotate-180" : ""}`}
+                  />
+                </div>
+
+                {isProfileOpen && (
+                  <div className="absolute right-0 mt-4 w-48 bg-black/95 border border-white/10 py-2 shadow-2xl backdrop-blur-md">
+                    <div className="absolute -top-2 right-4 h-0 w-0 border-l-8 border-r-8 border-b-8 border-l-transparent border-r-transparent border-b-white/10" />
+                    <div className="px-4 py-2 flex items-center gap-3 border-b border-white/10 hover:bg-white/5 cursor-pointer">
+                      <div className="h-8 w-8 rounded bg-red-600 flex items-center justify-center text-[10px] font-bold">
+                        KIDS
+                      </div>
+                      <span className="text-xs font-medium">Kids Profile</span>
+                    </div>
+                    <button className="w-full text-left px-4 py-2 text-[11px] font-medium hover:underline">
+                      Manage Profiles
+                    </button>
+                    <div className="border-t border-white/10 mt-2 pt-2">
+                      <button className="w-full text-left px-4 py-2 text-[11px] font-medium hover:underline">
+                        Account
+                      </button>
+                      <button className="w-full text-left px-4 py-2 text-[11px] font-medium hover:underline">
+                        Help Center
+                      </button>
+                      <button className="w-full text-left px-4 py-2 text-[11px] font-bold hover:underline mt-2">
+                        Sign Out of desimaovies
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-6 text-white">
-          <div
-            className={`flex items-center gap-2 border border-white/40 bg-black/40 px-2 py-1 transition-all ${isSearchOpen ? "w-64 opacity-100" : "w-10 overflow-hidden"}`}
+        <div className="no-scrollbar mt-3 flex items-center gap-2 overflow-x-auto pb-1 text-xs font-medium text-gray-200 lg:hidden">
+          <button
+            onClick={() => {
+              setActiveSection("home");
+              setIsPlayerOpen(false);
+              setSelectedGenre(null);
+            }}
+            className={`whitespace-nowrap rounded-full border px-3 py-1.5 transition-colors ${activeSection === "home" ? "border-white bg-white text-black" : "border-white/20 bg-black/35 text-gray-200"}`}
           >
-            <SearchIcon
-              className="h-5 w-5 cursor-pointer shrink-0"
-              onClick={() => setIsSearchOpen(!isSearchOpen)}
-            />
-            <input
-              type="text"
-              placeholder="Titles, genres, or TMDB ID"
-              className="bg-transparent text-sm outline-none w-full"
-              value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
-            />
-            {searchQuery && (
-              <X
-                className="h-4 w-4 cursor-pointer"
-                onClick={() => setSearchQuery("")}
-              />
-            )}
-          </div>
-          <div className="flex items-center gap-4">
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              className="bg-transparent text-xs text-gray-400 outline-none border border-white/20 px-1 py-0.5 hover:text-white transition-colors"
-            >
-              <option value="en-US" className="bg-[#141414]">
-                English
-              </option>
-              <option value="hi-IN" className="bg-[#141414]">
-                हिन्दी (Hindi)
-              </option>
-            </select>
-            <Bell className="h-5 w-5 cursor-pointer hover:text-gray-300 transition-colors" />
-            <div className="relative">
-              <div
-                className="flex items-center gap-2 cursor-pointer group"
-                onClick={() => setIsProfileOpen(!isProfileOpen)}
-              >
-                <div className="h-8 w-8 overflow-hidden rounded bg-blue-500 group-hover:ring-2 group-hover:ring-white transition-all">
-                  <User className="h-full w-full p-1" />
-                </div>
-                <div
-                  className={`border-l-4 border-r-4 border-t-4 border-transparent border-t-white transition-transform duration-300 ${isProfileOpen ? "rotate-180" : ""}`}
-                />
-              </div>
-
-              {isProfileOpen && (
-                <div className="absolute right-0 mt-4 w-48 bg-black/95 border border-white/10 py-2 shadow-2xl backdrop-blur-md">
-                  <div className="absolute -top-2 right-4 h-0 w-0 border-l-8 border-r-8 border-b-8 border-l-transparent border-r-transparent border-b-white/10" />
-                  <div className="px-4 py-2 flex items-center gap-3 border-b border-white/10 hover:bg-white/5 cursor-pointer">
-                    <div className="h-8 w-8 rounded bg-red-600 flex items-center justify-center text-[10px] font-bold">
-                      KIDS
-                    </div>
-                    <span className="text-xs font-medium">Kids Profile</span>
-                  </div>
-                  <button className="w-full text-left px-4 py-2 text-[11px] font-medium hover:underline">
-                    Manage Profiles
-                  </button>
-                  <div className="border-t border-white/10 mt-2 pt-2">
-                    <button className="w-full text-left px-4 py-2 text-[11px] font-medium hover:underline">
-                      Account
-                    </button>
-                    <button className="w-full text-left px-4 py-2 text-[11px] font-medium hover:underline">
-                      Help Center
-                    </button>
-                    <button className="w-full text-left px-4 py-2 text-[11px] font-bold hover:underline mt-2">
-                      Sign Out of desimaovies
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+            Home
+          </button>
+          <button
+            onClick={() => {
+              setActiveSection("tv");
+              setIsPlayerOpen(false);
+              setSelectedGenre(null);
+            }}
+            className={`whitespace-nowrap rounded-full border px-3 py-1.5 transition-colors ${activeSection === "tv" ? "border-white bg-white text-black" : "border-white/20 bg-black/35 text-gray-200"}`}
+          >
+            TV Shows
+          </button>
+          <button
+            onClick={() => {
+              setActiveSection("movies");
+              setIsPlayerOpen(false);
+              setSelectedGenre(null);
+            }}
+            className={`whitespace-nowrap rounded-full border px-3 py-1.5 transition-colors ${activeSection === "movies" ? "border-white bg-white text-black" : "border-white/20 bg-black/35 text-gray-200"}`}
+          >
+            Movies
+          </button>
+          <button
+            onClick={() => {
+              setActiveSection("new-popular");
+              setIsPlayerOpen(false);
+              setSelectedGenre(null);
+            }}
+            className={`whitespace-nowrap rounded-full border px-3 py-1.5 transition-colors ${activeSection === "new-popular" ? "border-white bg-white text-black" : "border-white/20 bg-black/35 text-gray-200"}`}
+          >
+            New &amp; Popular
+          </button>
+          <button
+            onClick={() => {
+              setActiveSection("my-list");
+              setIsPlayerOpen(false);
+              setSelectedGenre(null);
+            }}
+            className={`whitespace-nowrap rounded-full border px-3 py-1.5 transition-colors ${activeSection === "my-list" ? "border-white bg-white text-black" : "border-white/20 bg-black/35 text-gray-200"}`}
+          >
+            My List {myList.length > 0 ? `(${myList.length})` : ""}
+          </button>
         </div>
       </nav>
 
       {/* Hero Banner / Player Overlay */}
-      <section className="relative h-[85vh] w-full lg:h-[95vh]">
+      <section className="relative h-[82vh] w-full pt-8 sm:h-[85vh] lg:h-[95vh] lg:pt-0">
         {/* Section Title & Genre Filter for Movies/TV */}
         {!isPlayerOpen &&
           (activeSection === "movies" || activeSection === "tv") && (
-            <div className="absolute top-24 left-4 z-[45] flex items-center gap-6 md:left-12">
-              <h2 className="text-3xl font-bold text-white capitalize">
+            <div className="absolute left-4 top-32 z-[45] flex items-center gap-3 sm:top-24 sm:gap-6 md:left-12">
+              <h2 className="text-2xl font-bold text-white capitalize sm:text-3xl">
                 {activeSection}
               </h2>
               <div className="relative">
                 <select
                   value={selectedGenre || ""}
                   onChange={(e) => setSelectedGenre(e.target.value || null)}
-                  className="appearance-none bg-black border border-white/40 px-4 py-1 pr-10 text-sm font-bold text-white hover:bg-zinc-900 transition-colors cursor-pointer rounded-sm"
+                  className="appearance-none rounded-sm border border-white/40 bg-black px-3 py-1 pr-8 text-xs font-bold text-white transition-colors hover:bg-zinc-900 sm:px-4 sm:pr-10 sm:text-sm"
                 >
                   <option value="">Genres</option>
                   {GENRES.map((g) => (
@@ -602,7 +657,7 @@ export default function StreamDashboard({
             </div>
           )}
         {isPlayerOpen ? (
-          <div className="absolute inset-0 z-40 bg-[#141414] flex flex-col pt-16 md:pt-20">
+          <div className="absolute inset-0 z-40 flex flex-col bg-[#141414] pt-16 md:pt-20">
             <div className="relative flex-grow">
               <iframe
                 src={embedUrl}
@@ -611,7 +666,7 @@ export default function StreamDashboard({
               />
               <button
                 onClick={() => setIsPlayerOpen(false)}
-                className="absolute right-8 top-8 z-50 rounded-full bg-black/60 p-2 text-white hover:bg-black/80 transition-all hover:scale-110"
+                className="absolute right-3 top-3 z-50 rounded-full bg-black/60 p-2 text-white transition-all hover:scale-110 hover:bg-black/80 md:right-8 md:top-8"
                 title="Close Player"
               >
                 <X className="h-6 w-6" />
@@ -619,7 +674,7 @@ export default function StreamDashboard({
             </div>
 
             {selectedMediaType === "tv" && (
-              <div className="flex items-center gap-6 bg-[#141414] px-4 py-4 md:px-12 border-t border-white/10">
+              <div className="flex flex-wrap items-center gap-4 border-t border-white/10 bg-[#141414] px-4 py-4 md:px-12">
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">
                     Season
@@ -650,7 +705,7 @@ export default function StreamDashboard({
                     <select
                       value={episode}
                       onChange={(e) => setEpisode(Number(e.target.value))}
-                      className="w-24 bg-zinc-800 text-white text-sm px-3 py-1.5 rounded border border-white/10 outline-none focus:border-red-600 transition-colors cursor-pointer"
+                      className="w-20 rounded border border-white/10 bg-zinc-800 px-2 py-1.5 text-sm text-white outline-none transition-colors focus:border-red-600 sm:w-24 sm:px-3"
                     >
                       {Array.from(
                         {
@@ -695,7 +750,7 @@ export default function StreamDashboard({
                     </div>
                   </div>
                 </div>
-                <div className="ml-auto hidden md:block">
+                <div className="w-full sm:ml-auto sm:w-auto">
                   <p className="text-sm font-medium text-white truncate max-w-xs">
                     Playing: {selectedMovieDetails?.title}
                   </p>
@@ -724,11 +779,11 @@ export default function StreamDashboard({
                 <div className="hero-vignette-left absolute inset-0 z-10" />
               </div>
 
-              <div className="absolute bottom-1/4 left-4 z-20 flex max-w-xl flex-col gap-4 md:left-12 lg:bottom-1/3">
-                <h1 className="animate-banner-text text-5xl font-extrabold uppercase italic tracking-tighter text-white drop-shadow-2xl md:text-7xl">
+              <div className="absolute bottom-20 left-4 z-20 flex max-w-[90%] flex-col gap-3 sm:bottom-1/4 sm:max-w-xl sm:gap-4 md:left-12 lg:bottom-1/3">
+                <h1 className="animate-banner-text text-3xl font-extrabold uppercase italic tracking-tighter text-white drop-shadow-2xl sm:text-5xl md:text-7xl">
                   {heroMovie.title}
                 </h1>
-                <div className="flex items-center gap-3 text-sm font-bold text-white drop-shadow-md">
+                <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-white drop-shadow-md sm:gap-3 sm:text-sm">
                   <span className="text-green-400">
                     {heroMovie.rating * 10}% Match
                   </span>
@@ -740,23 +795,23 @@ export default function StreamDashboard({
                     <span className="text-gray-300">TV Series</span>
                   )}
                 </div>
-                <p className="line-clamp-3 text-lg text-white drop-shadow-md max-w-2xl">
+                <p className="line-clamp-3 max-w-2xl text-sm text-white drop-shadow-md sm:text-base md:text-lg">
                   {heroMovie.overview}
                 </p>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                   <button
                     onClick={() => playMovie(heroMovie)}
-                    className="flex items-center gap-2 rounded bg-white px-8 py-2 text-lg font-bold text-black transition hover:bg-white/80"
+                    className="flex items-center gap-2 rounded bg-white px-5 py-2 text-sm font-bold text-black transition hover:bg-white/80 sm:px-8 sm:text-lg"
                   >
-                    <Play className="h-6 w-6 fill-black" /> Play
+                    <Play className="h-5 w-5 fill-black sm:h-6 sm:w-6" /> Play
                   </button>
-                  <button className="flex items-center gap-2 rounded bg-gray-500/70 px-8 py-2 text-lg font-bold text-white transition hover:bg-gray-500/50">
-                    <Info className="h-6 w-6" /> More Info
+                  <button className="flex items-center gap-2 rounded bg-gray-500/70 px-5 py-2 text-sm font-bold text-white transition hover:bg-gray-500/50 sm:px-8 sm:text-lg">
+                    <Info className="h-5 w-5 sm:h-6 sm:w-6" /> More Info
                   </button>
                 </div>
               </div>
 
-              <div className="absolute bottom-1/4 right-0 z-20 flex items-center gap-4 pr-12 lg:bottom-1/3">
+              <div className="absolute bottom-20 right-0 z-20 flex items-center gap-2 pr-3 sm:bottom-1/4 sm:gap-4 sm:pr-12 lg:bottom-1/3">
                 <button
                   onClick={() => setIsMuted(!isMuted)}
                   className="rounded-full border-2 border-white/50 p-2 text-white hover:border-white"
@@ -767,7 +822,7 @@ export default function StreamDashboard({
                     <Volume2 className="h-5 w-5" />
                   )}
                 </button>
-                <div className="border-l-4 border-white bg-black/40 px-4 py-1 text-lg font-medium text-white backdrop-blur-sm">
+                <div className="border-l-4 border-white bg-black/40 px-2 py-1 text-sm font-medium text-white backdrop-blur-sm sm:px-4 sm:text-lg">
                   TV-MA
                 </div>
               </div>
@@ -779,18 +834,18 @@ export default function StreamDashboard({
       {/* Rows & Footer (Hidden when player is open for distraction-free viewing) */}
       {!isPlayerOpen && (
         <>
-          <div className="relative z-30 -mt-32 space-y-8 pb-20">
+          <div className="relative z-30 -mt-20 space-y-8 pb-20 md:-mt-32">
             {/* Continue Watching Section (Only in Home) */}
             {activeSection === "home" && watchHistory.length > 0 && (
               <div className="space-y-2 px-4 md:px-12">
                 <h2 className="flex items-center gap-1 text-lg font-bold text-white transition-colors hover:text-gray-300">
                   Continue Watching <ChevronRight className="h-4 w-4 ml-1" />
                 </h2>
-                <div className="no-scrollbar flex gap-4 overflow-x-auto overflow-y-hidden py-4 px-2">
+                <div className="no-scrollbar flex gap-3 overflow-x-auto overflow-y-hidden px-2 py-4 sm:gap-4">
                   {watchHistory.map((movie, idx) => (
                     <div
                       key={`continue-${movie.id}-${idx}`}
-                      className="group relative aspect-video w-[200px] flex-shrink-0 cursor-pointer overflow-hidden rounded-md transition-transform duration-300 hover:scale-105 hover:z-40 md:w-[280px]"
+                      className="group relative aspect-video w-[170px] flex-shrink-0 cursor-pointer overflow-hidden rounded-md transition-transform duration-300 hover:scale-105 hover:z-40 sm:w-[200px] md:w-[280px]"
                       onClick={() => playMovie(movie)}
                     >
                       <Image
@@ -800,7 +855,7 @@ export default function StreamDashboard({
                         }
                         alt={movie.title}
                         fill
-                        sizes="(max-width: 768px) 200px, 280px"
+                        sizes="(max-width: 640px) 170px, (max-width: 768px) 200px, 280px"
                         className="object-cover"
                       />
                       <div className="absolute top-2 left-2 rounded bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white uppercase border border-white/20 backdrop-blur-sm">
@@ -839,7 +894,7 @@ export default function StreamDashboard({
                       {category.movies.map((movie, index) => (
                         <div
                           key={`${category.key}-${movie.id}`}
-                          className={`group/card relative flex-shrink-0 cursor-pointer ${isTop10 ? "h-[280px] w-[200px] ml-12 first:ml-8" : "h-[220px] w-[150px] md:h-[270px] md:w-[185px]"}`}
+                          className={`group/card relative flex-shrink-0 cursor-pointer ${isTop10 ? "h-[220px] w-[160px] ml-8 first:ml-5 sm:h-[250px] sm:w-[180px] sm:ml-10 sm:first:ml-7 md:h-[280px] md:w-[200px] md:ml-12 md:first:ml-8" : "h-[200px] w-[140px] sm:h-[220px] sm:w-[150px] md:h-[270px] md:w-[185px]"}`}
                           onClick={() => openDetail(movie)}
                         >
                           {isTop10 && (
@@ -859,7 +914,7 @@ export default function StreamDashboard({
                                 }
                                 alt={movie.title}
                                 fill
-                                sizes="(max-width: 768px) 150px, 185px"
+                                sizes="(max-width: 640px) 140px, (max-width: 768px) 150px, 185px"
                                 className="object-cover transition-transform duration-500 group-hover/card:scale-105"
                               />
                             ) : (
@@ -950,7 +1005,7 @@ export default function StreamDashboard({
           </div>
 
           {/* Footer */}
-          <footer className="px-12 py-10 text-gray-500">
+          <footer className="px-4 py-10 text-gray-500 md:px-12">
             <div className="mb-8 flex gap-8">
               {/* Social links placeholder */}
             </div>
@@ -985,15 +1040,15 @@ export default function StreamDashboard({
       {searchQuery && (
         <div className="fixed inset-0 z-[60] bg-[#141414] overflow-y-auto">
           {/* Search Header */}
-          <div className="sticky top-0 z-10 flex items-center justify-between bg-[#141414] px-4 py-4 md:px-12">
-            <div className="flex items-center gap-8">
+          <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 bg-[#141414] px-4 py-4 md:px-12">
+            <div className="flex w-full items-center gap-3 sm:w-auto sm:gap-8">
               <div
-                className="text-2xl font-black tracking-tighter text-[#E50914] cursor-pointer"
+                className="cursor-pointer text-xl font-black tracking-tighter text-[#E50914] sm:text-2xl"
                 onClick={() => setSearchQuery("")}
               >
                 desimaovies
               </div>
-              <div className="flex items-center gap-2 border border-white/40 bg-black/40 px-3 py-1.5 w-64 md:w-96">
+              <div className="flex min-w-0 flex-1 items-center gap-2 border border-white/40 bg-black/40 px-3 py-1.5 sm:w-64 md:w-96">
                 <SearchIcon className="h-5 w-5 text-gray-400" />
                 <input
                   type="text"
@@ -1011,7 +1066,7 @@ export default function StreamDashboard({
             </div>
             <button
               onClick={() => setSearchQuery("")}
-              className="text-white hover:text-gray-300 flex items-center gap-2"
+              className="ml-auto flex items-center gap-2 text-white hover:text-gray-300"
             >
               <span className="hidden md:inline text-sm font-medium">
                 Close
@@ -1020,7 +1075,7 @@ export default function StreamDashboard({
             </button>
           </div>
 
-          <div className="px-4 md:px-12 pb-20 pt-8">
+          <div className="px-4 pb-20 pt-8 md:px-12">
             <h2 className="mb-8 text-xl font-medium text-gray-400">
               Showing results for:{" "}
               <span className="text-white font-bold">
@@ -1028,7 +1083,7 @@ export default function StreamDashboard({
               </span>
             </h2>
 
-            <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8">
               {searchResults.length > 0 ? (
                 searchResults.map((movie) => (
                   <div
@@ -1091,7 +1146,7 @@ export default function StreamDashboard({
       {/* Detail Modal */}
       {detailMovie && (
         <div
-          className="fixed inset-0 z-[70] flex items-center justify-center p-4 md:p-8"
+          className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 md:p-8"
           onClick={() => setDetailMovie(null)}
         >
           {/* Backdrop blur */}
@@ -1099,11 +1154,11 @@ export default function StreamDashboard({
 
           {/* Modal Card */}
           <div
-            className="relative z-10 w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-zinc-900 shadow-2xl scrollbar-thin scrollbar-track-zinc-800 scrollbar-thumb-zinc-600"
+            className="relative z-10 max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-zinc-900 shadow-2xl scrollbar-thin scrollbar-track-zinc-800 scrollbar-thumb-zinc-600"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Backdrop image header */}
-            <div className="relative h-64 w-full md:h-80">
+            <div className="relative h-52 w-full sm:h-64 md:h-80">
               {backdropUrl((detailData ?? detailMovie).backdropPath) ||
               posterUrl((detailData ?? detailMovie).posterPath) ? (
                 <Image
@@ -1142,7 +1197,7 @@ export default function StreamDashboard({
             </div>
 
             {/* Info section */}
-            <div className="p-6 space-y-6 relative">
+            <div className="relative space-y-6 p-4 sm:p-6">
               {isLoadingDetail && (
                 <div className="absolute inset-0 z-20 flex items-center justify-center bg-zinc-900/60 backdrop-blur-[2px]">
                   <div className="h-10 w-10 animate-spin rounded-full border-4 border-red-600 border-t-transparent" />
@@ -1183,10 +1238,10 @@ export default function StreamDashboard({
                   )}
 
                   {/* Action buttons */}
-                  <div className="flex items-center gap-3 pt-2">
+                  <div className="flex flex-wrap items-center gap-3 pt-2">
                     <button
                       onClick={() => playMovie(detailMovie)}
-                      className="flex items-center gap-2 rounded bg-white px-8 py-2 text-sm font-bold text-black hover:bg-white/90 transition-all hover:scale-105"
+                      className="flex items-center gap-2 rounded bg-white px-5 py-2 text-sm font-bold text-black transition-all hover:scale-105 hover:bg-white/90 sm:px-8"
                     >
                       <Play className="h-4 w-4 fill-black" /> Play
                     </button>
@@ -1238,7 +1293,7 @@ export default function StreamDashboard({
               {/* Episodes Section for TV */}
               {detailMovie.mediaType === "tv" && (
                 <div className="space-y-4 pt-4 border-t border-white/10">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <h3 className="text-xl font-bold text-white">Episodes</h3>
                     <select
                       value={detailSeason}
@@ -1266,7 +1321,7 @@ export default function StreamDashboard({
                       detailData.seasonDetails.map((ep: any) => (
                         <div
                           key={ep.id}
-                          className="group/ep flex items-center gap-4 p-4 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer border border-transparent hover:border-white/10"
+                          className="group/ep flex flex-col items-start gap-3 rounded-lg border border-transparent p-3 transition-colors hover:border-white/10 hover:bg-zinc-800 sm:flex-row sm:items-center sm:gap-4 sm:p-4"
                           onClick={() => {
                             setSelectedMovieId(detailMovie.id);
                             setSelectedMediaType("tv");
@@ -1277,7 +1332,7 @@ export default function StreamDashboard({
                             window.scrollTo({ top: 0, behavior: "smooth" });
                           }}
                         >
-                          <span className="text-xl font-bold text-gray-500 w-6">
+                          <span className="w-6 text-xl font-bold text-gray-500">
                             {ep.episode_number}
                           </span>
                           <div className="relative aspect-video w-32 shrink-0 overflow-hidden rounded bg-zinc-800">
