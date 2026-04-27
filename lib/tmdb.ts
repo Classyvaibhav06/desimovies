@@ -69,7 +69,7 @@ const CATEGORY_CONFIGS: Array<{ key: string; label: string; endpoint: string; me
   { key: "top-rated", label: "Top Rated Movies", endpoint: "/movie/top_rated", mediaType: "movie" },
   { key: "popular-tv", label: "Popular TV Shows", endpoint: "/tv/popular", mediaType: "tv" },
   { key: "top-10-tv", label: "Top 10 TV Shows Today", endpoint: "/tv/popular", mediaType: "tv" },
-  { key: "new-movies", label: "New on 1FLEX", endpoint: "/movie/now_playing", mediaType: "movie" },
+  { key: "new-movies", label: "New on desimaovies", endpoint: "/movie/now_playing", mediaType: "movie" },
   { key: "new-tv", label: "New TV Series", endpoint: "/tv/on_the_air", mediaType: "tv" },
   { key: "upcoming", label: "Coming Soon", endpoint: "/movie/upcoming", mediaType: "movie" },
   {
