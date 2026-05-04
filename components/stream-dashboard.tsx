@@ -2,7 +2,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   CategoryWithMovies,
   SearchResult,
@@ -19,7 +19,6 @@ import {
   ChevronLeft,
   Volume2,
   VolumeX,
-  Maximize,
 } from "lucide-react";
 
 type StreamDashboardProps = {
@@ -29,72 +28,11 @@ type StreamDashboardProps = {
 
 type MediaType = "movie" | "tv";
 
-const CATEGORY_CONFIGS: Array<{
-  key: string;
-  label: string;
-  endpoint: string;
-  mediaType: "movie" | "tv";
-}> = [
-  {
-    key: "trending",
-    label: "Trending Now",
-    endpoint: "/trending/all/day",
-    mediaType: "movie",
-  },
-  {
-    key: "popular-movies",
-    label: "Popular Movies",
-    endpoint: "/movie/popular",
-    mediaType: "movie",
-  },
-  {
-    key: "top-10-movies",
-    label: "Top 10 Movies Today",
-    endpoint: "/movie/popular",
-    mediaType: "movie",
-  },
-  {
-    key: "top-rated",
-    label: "Top Rated Movies",
-    endpoint: "/movie/top_rated",
-    mediaType: "movie",
-  },
-  {
-    key: "popular-tv",
-    label: "Popular TV Shows",
-    endpoint: "/tv/popular",
-    mediaType: "tv",
-  },
-  {
-    key: "top-10-tv",
-    label: "Top 10 TV Shows Today",
-    endpoint: "/tv/popular",
-    mediaType: "tv",
-  },
-  {
-    key: "new-movies",
-    label: "New on desimaovies",
-    endpoint: "/movie/now_playing",
-    mediaType: "movie",
-  },
-  {
-    key: "new-tv",
-    label: "New TV Series",
-    endpoint: "/tv/on_the_air",
-    mediaType: "tv",
-  },
-  {
-    key: "upcoming",
-    label: "Coming Soon",
-    endpoint: "/movie/upcoming",
-    mediaType: "movie",
-  },
-  {
-    key: "desi-picks",
-    label: "Desi Picks",
-    endpoint: "/discover/movie?with_origin_country=IN&sort_by=popularity.desc",
-    mediaType: "movie",
-  },
+const EMBED_SOURCES = [
+  { id: "vidsrc_xyz", name: "Source 1 (Captions)", url: "https://vidsrc.xyz/embed" },
+  { id: "vidsrc_to", name: "Source 2 (HD)", url: "https://vidsrc.to/embed" },
+  { id: "vidking", name: "Source 3 (Fast)", url: "https://www.vidking.net/embed" },
+  { id: "vidsrc_me", name: "Source 4", url: "https://vidsrc.me/embed" },
 ];
 
 function buildEmbedUrl(
@@ -102,11 +40,30 @@ function buildEmbedUrl(
   tmdbId: number,
   season: number,
   episode: number,
+  sourceId: string = "vidsrc_xyz",
 ): string {
-  if (mediaType === "tv") {
-    return `https://www.vidking.net/embed/tv/${tmdbId}/${season}/${episode}`;
+  if (sourceId === "vidsrc_me") {
+    return mediaType === "tv"
+      ? `https://vidsrc.me/embed/${tmdbId}/${season}-${episode}/`
+      : `https://vidsrc.me/embed/${tmdbId}/`;
   }
-  return `https://www.vidking.net/embed/movie/${tmdbId}`;
+
+  if (sourceId === "vidsrc_to") {
+    return mediaType === "tv"
+      ? `https://vidsrc.to/embed/tv/${tmdbId}/${season}/${episode}`
+      : `https://vidsrc.to/embed/movie/${tmdbId}`;
+  }
+
+  if (sourceId === "vidking") {
+    return mediaType === "tv"
+      ? `https://www.vidking.net/embed/tv/${tmdbId}/${season}/${episode}`
+      : `https://www.vidking.net/embed/movie/${tmdbId}`;
+  }
+
+  // Default to vidsrc.xyz
+  return mediaType === "tv"
+    ? `https://vidsrc.xyz/embed/tv/${tmdbId}/${season}/${episode}`
+    : `https://vidsrc.xyz/embed/movie/${tmdbId}`;
 }
 
 function posterUrl(path: string | null): string | null {
@@ -145,8 +102,11 @@ export default function StreamDashboard({
   const [isMuted, setIsMuted] = useState(true);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<
-    "home" | "tv" | "movies" | "new-popular" | "my-list"
+    "home" | "tv" | "movies" | "new-popular" | "my-list" | "categories"
   >("home");
+  const [selectedCategoryKey, setSelectedCategoryKey] = useState<string | null>(
+    null,
+  );
   const [myList, setMyList] = useState<(MovieSummary | SearchResult)[]>([]);
   const [watchHistory, setWatchHistory] = useState<
     (MovieSummary | SearchResult)[]
@@ -161,6 +121,16 @@ export default function StreamDashboard({
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [detailSeason, setDetailSeason] = useState(1);
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
+  const [selectedSource, setSelectedSource] = useState<string>("vidsrc_xyz");
+
+  const categoryNavItems = useMemo(() => {
+    return categories.map((category) => ({
+      key: category.key,
+      label: category.label,
+      mediaType: category.mediaType,
+      count: category.movies.length,
+    }));
+  }, [categories]);
 
   const GENRES = useMemo(() => {
     if (activeSection === "movies")
@@ -270,31 +240,42 @@ export default function StreamDashboard({
   }, [selectedMovieId, selectedMediaType]);
 
   const embedUrl = useMemo(
-    () => buildEmbedUrl(selectedMediaType, selectedMovieId, season, episode),
-    [selectedMediaType, selectedMovieId, season, episode],
+    () =>
+      buildEmbedUrl(
+        selectedMediaType,
+        selectedMovieId,
+        season,
+        episode,
+        selectedSource,
+      ),
+    [selectedMediaType, selectedMovieId, season, episode, selectedSource],
   );
 
   const heroMovie = useMemo(() => {
     const list =
       activeSection === "my-list"
         ? myList
-        : activeSection === "home"
-          ? categories.flatMap((c) => c.movies)
-          : activeSection === "tv"
-            ? categories
-                .filter((c) => c.mediaType === "tv")
-                .flatMap((c) => c.movies)
-            : activeSection === "movies"
+        : activeSection === "categories"
+          ? ((selectedCategoryKey
+              ? categories.find((c) => c.key === selectedCategoryKey)?.movies
+              : categories[0]?.movies) ?? [])
+          : activeSection === "home"
+            ? categories.flatMap((c) => c.movies)
+            : activeSection === "tv"
               ? categories
-                  .filter((c) => c.mediaType === "movie")
+                  .filter((c) => c.mediaType === "tv")
                   .flatMap((c) => c.movies)
-              : categories
-                  .filter((c) =>
-                    ["new-movies", "new-tv", "upcoming", "trending"].includes(
-                      c.key,
-                    ),
-                  )
-                  .flatMap((c) => c.movies);
+              : activeSection === "movies"
+                ? categories
+                    .filter((c) => c.mediaType === "movie")
+                    .flatMap((c) => c.movies)
+                : categories
+                    .filter((c) =>
+                      ["new-movies", "new-tv", "upcoming", "trending"].includes(
+                        c.key,
+                      ),
+                    )
+                    .flatMap((c) => c.movies);
 
     // Try to find "The Boys" or a prominent item in the list
     const featured = list.find(
@@ -305,7 +286,7 @@ export default function StreamDashboard({
     );
     if (featured) return featured;
     return list[0];
-  }, [categories, activeSection, myList]);
+  }, [categories, activeSection, myList, selectedCategoryKey]);
 
   async function handleSearch(q: string) {
     setSearchQuery(q);
@@ -417,6 +398,10 @@ export default function StreamDashboard({
           mediaType: "movie",
         },
       ];
+    if (activeSection === "categories") {
+      if (!selectedCategoryKey) return categories;
+      return categories.filter((c) => c.key === selectedCategoryKey);
+    }
     if (activeSection === "tv")
       base = categories.filter((c) => c.mediaType === "tv");
     else if (activeSection === "movies")
@@ -438,7 +423,7 @@ export default function StreamDashboard({
     }
 
     return base;
-  }, [categories, activeSection, myList, selectedGenre]);
+  }, [categories, activeSection, myList, selectedGenre, selectedCategoryKey]);
 
   function toggleMyList(movie: MovieSummary | SearchResult) {
     setMyList((prev) => {
@@ -460,7 +445,9 @@ export default function StreamDashboard({
   }
 
   return (
-    <div className="relative min-h-screen bg-[#141414]">
+    <div className="relative min-h-screen overflow-x-clip bg-[#090b12]">
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_20%_10%,rgba(255,120,80,0.16),transparent_40%),radial-gradient(circle_at_80%_0%,rgba(249,115,22,0.12),transparent_35%)]" />
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(130deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0)_35%)]" />
       {showIntroPopup && (
         <div className="pointer-events-none fixed right-3 top-3 z-[200] sm:right-4 sm:top-4">
           <div className="rounded-xl border border-white/20 bg-zinc-900/95 px-4 py-3 text-left shadow-2xl">
@@ -524,6 +511,7 @@ export default function StreamDashboard({
                   setActiveSection("new-popular");
                   setIsPlayerOpen(false);
                   setSelectedGenre(null);
+                  setSelectedCategoryKey(null);
                 }}
                 className={`transition-colors hover:text-gray-300 ${activeSection === "new-popular" ? "text-white font-bold" : "text-gray-400"}`}
               >
@@ -531,9 +519,23 @@ export default function StreamDashboard({
               </button>
               <button
                 onClick={() => {
+                  setActiveSection("categories");
+                  setIsPlayerOpen(false);
+                  setSelectedGenre(null);
+                  setSelectedCategoryKey(
+                    (prev) => prev ?? categories[0]?.key ?? null,
+                  );
+                }}
+                className={`transition-colors hover:text-gray-300 ${activeSection === "categories" ? "text-white font-bold" : "text-gray-400"}`}
+              >
+                Categories
+              </button>
+              <button
+                onClick={() => {
                   setActiveSection("my-list");
                   setIsPlayerOpen(false);
                   setSelectedGenre(null);
+                  setSelectedCategoryKey(null);
                 }}
                 className={`transition-colors hover:text-gray-300 ${activeSection === "my-list" ? "text-white font-bold" : "text-gray-400"}`}
               >
@@ -662,6 +664,7 @@ export default function StreamDashboard({
               setActiveSection("new-popular");
               setIsPlayerOpen(false);
               setSelectedGenre(null);
+              setSelectedCategoryKey(null);
             }}
             className={`whitespace-nowrap rounded-full border px-3 py-1.5 transition-colors ${activeSection === "new-popular" ? "border-white bg-white text-black" : "border-white/20 bg-black/35 text-gray-200"}`}
           >
@@ -669,43 +672,94 @@ export default function StreamDashboard({
           </button>
           <button
             onClick={() => {
+              setActiveSection("categories");
+              setIsPlayerOpen(false);
+              setSelectedGenre(null);
+              setSelectedCategoryKey(
+                (prev) => prev ?? categories[0]?.key ?? null,
+              );
+            }}
+            className={`whitespace-nowrap rounded-full border px-3 py-1.5 transition-colors ${activeSection === "categories" ? "border-white bg-white text-black" : "border-white/20 bg-black/35 text-gray-200"}`}
+          >
+            Categories
+          </button>
+          <button
+            onClick={() => {
               setActiveSection("my-list");
               setIsPlayerOpen(false);
               setSelectedGenre(null);
+              setSelectedCategoryKey(null);
             }}
             className={`whitespace-nowrap rounded-full border px-3 py-1.5 transition-colors ${activeSection === "my-list" ? "border-white bg-white text-black" : "border-white/20 bg-black/35 text-gray-200"}`}
           >
             My List {myList.length > 0 ? `(${myList.length})` : ""}
           </button>
         </div>
+
+        {activeSection === "categories" && categoryNavItems.length > 0 && (
+          <div className="no-scrollbar mt-3 overflow-x-auto pb-1">
+            <div className="flex min-w-max items-center gap-2 rounded-2xl border border-white/10 bg-black/40 p-2 backdrop-blur-md">
+              {categoryNavItems.map((item) => {
+                const isActive = selectedCategoryKey === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    onClick={() => setSelectedCategoryKey(item.key)}
+                    className={`group/category rounded-xl border px-3 py-2 text-left transition-all duration-300 ${
+                      isActive
+                        ? "border-rose-400/80 bg-gradient-to-br from-rose-500/30 to-amber-400/20 text-white shadow-lg shadow-rose-700/20"
+                        : "border-white/10 bg-white/5 text-gray-200 hover:border-white/40 hover:bg-white/10"
+                    }`}
+                  >
+                    <p className="text-[11px] font-semibold uppercase tracking-wide">
+                      {item.label}
+                    </p>
+                    <p className="mt-0.5 text-[10px] text-gray-300 group-hover/category:text-white/90">
+                      {item.mediaType === "tv" ? "TV Shows" : "Movies"} •{" "}
+                      {item.count}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* Hero Banner / Player Overlay */}
       <section className="relative h-[82vh] w-full pt-8 sm:h-[85vh] lg:h-[95vh] lg:pt-0">
         {/* Section Title & Genre Filter for Movies/TV */}
         {!isPlayerOpen &&
-          (activeSection === "movies" || activeSection === "tv") && (
+          (activeSection === "movies" ||
+            activeSection === "tv" ||
+            activeSection === "categories") && (
             <div className="absolute left-4 top-32 z-[45] flex items-center gap-3 sm:top-24 sm:gap-6 md:left-12">
               <h2 className="text-2xl font-bold text-white capitalize sm:text-3xl">
-                {activeSection}
+                {activeSection === "categories"
+                  ? (categoryNavItems.find(
+                      (item) => item.key === selectedCategoryKey,
+                    )?.label ?? "Categories")
+                  : activeSection}
               </h2>
-              <div className="relative">
-                <select
-                  value={selectedGenre || ""}
-                  onChange={(e) => setSelectedGenre(e.target.value || null)}
-                  className="appearance-none rounded-sm border border-white/40 bg-black px-3 py-1 pr-8 text-xs font-bold text-white transition-colors hover:bg-zinc-900 sm:px-4 sm:pr-10 sm:text-sm"
-                >
-                  <option value="">Genres</option>
-                  {GENRES.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-white">
-                  <div className="h-0 w-0 border-l-[4px] border-r-[4px] border-t-[6px] border-l-transparent border-r-transparent border-t-white" />
+              {(activeSection === "movies" || activeSection === "tv") && (
+                <div className="relative">
+                  <select
+                    value={selectedGenre || ""}
+                    onChange={(e) => setSelectedGenre(e.target.value || null)}
+                    className="appearance-none rounded-sm border border-white/40 bg-black px-3 py-1 pr-8 text-xs font-bold text-white transition-colors hover:bg-zinc-900 sm:px-4 sm:pr-10 sm:text-sm"
+                  >
+                    <option value="">Genres</option>
+                    {GENRES.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-white">
+                    <div className="h-0 w-0 border-l-[4px] border-r-[4px] border-t-[6px] border-l-transparent border-r-transparent border-t-white" />
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
         {isPlayerOpen ? (
@@ -725,93 +779,115 @@ export default function StreamDashboard({
               </button>
             </div>
 
-            {selectedMediaType === "tv" && (
-              <div className="flex flex-wrap items-center gap-4 border-t border-white/10 bg-[#141414] px-4 py-4 md:px-12">
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">
-                    Season
-                  </label>
-                  <select
-                    value={season}
-                    onChange={(e) => {
-                      setSeason(Number(e.target.value));
-                      setEpisode(1);
-                    }}
-                    className="bg-zinc-800 text-white text-sm px-3 py-1.5 rounded border border-white/10 outline-none focus:border-red-600 transition-colors cursor-pointer"
-                  >
-                    {Array.from(
-                      { length: selectedMovieDetails?.numberOfSeasons || 1 },
-                      (_, i) => i + 1,
-                    ).map((s) => (
-                      <option key={s} value={s}>
-                        Season {s}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">
-                    Episode
-                  </label>
-                  <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-4 border-t border-white/10 bg-[#141414] px-4 py-4 md:px-12">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">
+                  Source
+                </label>
+                <select
+                  value={selectedSource}
+                  onChange={(e) => setSelectedSource(e.target.value)}
+                  className="bg-zinc-800 text-white text-sm px-3 py-1.5 rounded border border-white/10 outline-none focus:border-red-600 transition-colors cursor-pointer"
+                >
+                  {EMBED_SOURCES.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedMediaType === "tv" && (
+                <>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">
+                      Season
+                    </label>
                     <select
-                      value={episode}
-                      onChange={(e) => setEpisode(Number(e.target.value))}
-                      className="w-20 rounded border border-white/10 bg-zinc-800 px-2 py-1.5 text-sm text-white outline-none transition-colors focus:border-red-600 sm:w-24 sm:px-3"
+                      value={season}
+                      onChange={(e) => {
+                        setSeason(Number(e.target.value));
+                        setEpisode(1);
+                      }}
+                      className="bg-zinc-800 text-white text-sm px-3 py-1.5 rounded border border-white/10 outline-none focus:border-red-600 transition-colors cursor-pointer"
                     >
                       {Array.from(
-                        {
-                          length:
-                            selectedMovieDetails?.seasons?.find(
-                              (s) => s.seasonNumber === season,
-                            )?.episodeCount || 20,
-                        },
+                        { length: selectedMovieDetails?.numberOfSeasons || 1 },
                         (_, i) => i + 1,
-                      ).map((e) => (
-                        <option key={e} value={e}>
-                          Episode {e}
+                      ).map((s) => (
+                        <option key={s} value={s}>
+                          Season {s}
                         </option>
                       ))}
                     </select>
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => setEpisode(Math.max(1, episode - 1))}
-                        className="bg-zinc-800 p-1.5 rounded hover:bg-zinc-700 disabled:opacity-30"
-                        disabled={episode <= 1}
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">
+                      Episode
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={episode}
+                        onChange={(e) => setEpisode(Number(e.target.value))}
+                        className="w-20 rounded border border-white/10 bg-zinc-800 px-2 py-1.5 text-sm text-white outline-none transition-colors focus:border-red-600 sm:w-24 sm:px-3"
                       >
-                        <ChevronLeft className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          const maxEp =
-                            selectedMovieDetails?.seasons?.find(
+                        {Array.from(
+                          {
+                            length:
+                              selectedMovieDetails?.seasons?.find(
+                                (s) => s.seasonNumber === season,
+                              )?.episodeCount || 20,
+                          },
+                          (_, i) => i + 1,
+                        ).map((e) => (
+                          <option key={e} value={e}>
+                            Episode {e}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => setEpisode(Math.max(1, episode - 1))}
+                          className="bg-zinc-800 p-1.5 rounded hover:bg-zinc-700 disabled:opacity-30"
+                          disabled={episode <= 1}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            const maxEp =
+                              selectedMovieDetails?.seasons?.find(
+                                (s) => s.seasonNumber === season,
+                              )?.episodeCount || 99;
+                            if (episode < maxEp) setEpisode(episode + 1);
+                          }}
+                          className="bg-zinc-800 p-1.5 rounded hover:bg-zinc-700 disabled:opacity-30"
+                          disabled={
+                            episode >=
+                            (selectedMovieDetails?.seasons?.find(
                               (s) => s.seasonNumber === season,
-                            )?.episodeCount || 99;
-                          if (episode < maxEp) setEpisode(episode + 1);
-                        }}
-                        className="bg-zinc-800 p-1.5 rounded hover:bg-zinc-700 disabled:opacity-30"
-                        disabled={
-                          episode >=
-                          (selectedMovieDetails?.seasons?.find(
-                            (s) => s.seasonNumber === season,
-                          )?.episodeCount || 99)
-                        }
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </button>
+                            )?.episodeCount || 99)
+                          }
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="w-full sm:ml-auto sm:w-auto">
-                  <p className="text-sm font-medium text-white truncate max-w-xs">
-                    Playing: {selectedMovieDetails?.title}
-                  </p>
+                </>
+              )}
+
+              <div className="w-full sm:ml-auto sm:w-auto">
+                <p className="text-sm font-medium text-white truncate max-w-xs">
+                  Playing: {selectedMovieDetails?.title}
+                </p>
+                {selectedMediaType === "tv" && (
                   <p className="text-xs text-gray-400">
                     S{season} E{episode}
                   </p>
-                </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         ) : (
           heroMovie && (

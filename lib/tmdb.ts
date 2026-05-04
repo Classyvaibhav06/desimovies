@@ -57,10 +57,20 @@ type FanartMovieResponse = {
   }>;
 };
 
+type FanartTvResponse = {
+  tvposter?: Array<{
+    url: string;
+    lang?: string;
+    likes?: string;
+  }>;
+};
+
 const TMDB_BASE_URL = "https://api.tmdb.org/3";
 const FANART_BASE_URL = "https://webservice.fanart.tv/v3";
 
 const fanartPosterCache = new Map<number, string | null>();
+const fanartTvPosterCache = new Map<number, string | null>();
+const tmdbTvdbIdCache = new Map<number, number | null>();
 
 const CATEGORY_CONFIGS: Array<{ key: string; label: string; endpoint: string; mediaType: "movie" | "tv" }> = [
   { key: "trending", label: "Trending Now", endpoint: "/trending/all/day", mediaType: "movie" },
@@ -172,6 +182,16 @@ function pickBestFanartPoster(data: FanartMovieResponse): string | null {
   return posters[0]?.url ?? null;
 }
 
+function pickBestFanartTvPoster(data: FanartTvResponse): string | null {
+  const posters = data.tvposter ?? [];
+  if (posters.length === 0) return null;
+  const englishPoster = posters.find((poster) => poster.lang === "en")?.url;
+  if (englishPoster) return englishPoster;
+  const noLangPoster = posters.find((poster) => !poster.lang)?.url;
+  if (noLangPoster) return noLangPoster;
+  return posters[0]?.url ?? null;
+}
+
 async function fetchFanartPosterForMovie(movieId: number): Promise<string | null> {
   const apiKey = process.env.FANART_API_KEY?.trim();
   if (!apiKey) return null;
@@ -187,10 +207,69 @@ async function fetchFanartPosterForMovie(movieId: number): Promise<string | null
   } catch { fanartPosterCache.set(movieId, null); return null; }
 }
 
+async function fetchTvdbIdForTmdbTvShow(tmdbTvId: number): Promise<number | null> {
+  if (tmdbTvdbIdCache.has(tmdbTvId)) return tmdbTvdbIdCache.get(tmdbTvId) ?? null;
+  const authConfig = getTmdbAuthConfig();
+  const endpoint = `/tv/${tmdbTvId}/external_ids`;
+  let url = `${TMDB_BASE_URL}${endpoint}`;
+  if (authConfig.appendApiKeyToUrl) {
+    const apiKey = process.env.TMDB_API_KEY?.trim();
+    const separator = endpoint.includes("?") ? "&" : "?";
+    url = `${url}${separator}api_key=${apiKey}`;
+  }
+  try {
+    const response = await fetch(url, {
+      headers: authConfig.headers,
+      next: { revalidate: 86400 },
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!response.ok) {
+      tmdbTvdbIdCache.set(tmdbTvId, null);
+      return null;
+    }
+    const data = (await response.json()) as { tvdb_id?: number | null };
+    const tvdbId = Number(data.tvdb_id);
+    const finalId = Number.isFinite(tvdbId) && tvdbId > 0 ? tvdbId : null;
+    tmdbTvdbIdCache.set(tmdbTvId, finalId);
+    return finalId;
+  } catch {
+    tmdbTvdbIdCache.set(tmdbTvId, null);
+    return null;
+  }
+}
+
+async function fetchFanartPosterForTv(tmdbTvId: number): Promise<string | null> {
+  const apiKey = process.env.FANART_API_KEY?.trim();
+  if (!apiKey) return null;
+  if (fanartTvPosterCache.has(tmdbTvId)) return fanartTvPosterCache.get(tmdbTvId) ?? null;
+  const tvdbId = await fetchTvdbIdForTmdbTvShow(tmdbTvId);
+  if (!tvdbId) {
+    fanartTvPosterCache.set(tmdbTvId, null);
+    return null;
+  }
+  const url = `${FANART_BASE_URL}/tv/${tvdbId}?api_key=${encodeURIComponent(apiKey)}`;
+  try {
+    const response = await fetch(url, { next: { revalidate: 86400 }, signal: AbortSignal.timeout(5000) });
+    if (!response.ok) {
+      fanartTvPosterCache.set(tmdbTvId, null);
+      return null;
+    }
+    const data = (await response.json()) as FanartTvResponse;
+    const posterUrl = pickBestFanartTvPoster(data);
+    fanartTvPosterCache.set(tmdbTvId, posterUrl);
+    return posterUrl;
+  } catch {
+    fanartTvPosterCache.set(tmdbTvId, null);
+    return null;
+  }
+}
+
 async function applyFanartFallbackToMovies(movies: MovieSummary[]): Promise<MovieSummary[]> {
   return Promise.all(movies.map(async (movie) => {
     if (movie.posterPath) return movie;
-    const fanartPoster = await fetchFanartPosterForMovie(movie.id);
+    const fanartPoster = movie.mediaType === "tv"
+      ? await fetchFanartPosterForTv(movie.id)
+      : await fetchFanartPosterForMovie(movie.id);
     if (!fanartPoster) return movie;
     return { ...movie, posterPath: fanartPoster };
   }));
@@ -198,8 +277,10 @@ async function applyFanartFallbackToMovies(movies: MovieSummary[]): Promise<Movi
 
 async function applyFanartFallbackToSearchResults(results: SearchResult[]): Promise<SearchResult[]> {
   return Promise.all(results.map(async (result) => {
-    if (result.mediaType !== "movie" || result.posterPath) return result;
-    const fanartPoster = await fetchFanartPosterForMovie(result.id);
+    if (result.posterPath) return result;
+    const fanartPoster = result.mediaType === "tv"
+      ? await fetchFanartPosterForTv(result.id)
+      : await fetchFanartPosterForMovie(result.id);
     if (!fanartPoster) return result;
     return { ...result, posterPath: fanartPoster };
   }));
@@ -404,7 +485,7 @@ export async function getSimilarMedia(mediaType: "movie" | "tv", tmdbId: number)
       posterPath: item.poster_path, backdropPath: item.backdrop_path, releaseDate: item.release_date ?? item.first_air_date ?? "",
       rating: Number(item.vote_average.toFixed(1)), mediaType
     }));
-    return mediaType === "movie" ? applyFanartFallbackToSearchResults(results) : results;
+    return applyFanartFallbackToSearchResults(results);
   } catch { return []; }
 }
 
@@ -414,7 +495,7 @@ export async function getMediaByTmdbIds(ids: number[], mediaType: "movie" | "tv"
   const uniqueIds = Array.from(new Set(ids.filter((id) => Number.isFinite(id) && id > 0)));
   const results = await Promise.all(uniqueIds.slice(0, SEARCH_RESULT_LIMIT).map((id) => fetchTmdbDetailsById(authConfig, mediaType, id)));
   const filteredResults = results.filter((item): item is SearchResult => item !== null);
-  return mediaType === "movie" ? applyFanartFallbackToSearchResults(filteredResults) : filteredResults;
+  return applyFanartFallbackToSearchResults(filteredResults);
 }
 
 export async function getSeasonDetails(tmdbId: number, seasonNumber: number): Promise<any[]> {
