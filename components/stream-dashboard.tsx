@@ -471,6 +471,7 @@ export default function StreamDashboard({
     if (isWatchRoute) router.push("/");
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   function closeDetail() {
     setDetailMovie(null);
     setDetailData(null);
@@ -583,6 +584,7 @@ export default function StreamDashboard({
     });
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   function isInMyList(movie: MovieSummary | SearchResult) {
     return myList.some(
       (m) => m.id === movie.id && m.mediaType === movie.mediaType,
