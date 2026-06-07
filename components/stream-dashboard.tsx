@@ -2,6 +2,7 @@
 "use client";
 
 import Image from "next/image";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type {
   CategoryWithMovies,
@@ -24,15 +25,38 @@ import {
 type StreamDashboardProps = {
   categories: CategoryWithMovies[];
   fallbackMovieId: number;
+  initialPlayback?: InitialPlayback;
+  initialDetail?: InitialDetail;
 };
 
 type MediaType = "movie" | "tv";
 
+type InitialPlayback = {
+  id: number;
+  mediaType: MediaType;
+  season?: number;
+  episode?: number;
+  sourceId?: string;
+};
+
+type InitialDetail = {
+  id: number;
+  mediaType: MediaType;
+};
+
 const EMBED_SOURCES = [
-  { id: "vidsrc_xyz", name: "Source 1 (Captions)", url: "https://vidsrc.xyz/embed" },
+  {
+    id: "vidlink",
+    name: "Source 1 (4K)",
+    url: "https://vidlink.pro",
+  },
   { id: "vidsrc_to", name: "Source 2 (HD)", url: "https://vidsrc.to/embed" },
-  { id: "vidking", name: "Source 3 (Fast)", url: "https://www.vidking.net/embed" },
-  { id: "vidsrc_me", name: "Source 4", url: "https://vidsrc.me/embed" },
+  {
+    id: "vidking",
+    name: "Source 3 (Fast)",
+    url: "https://www.vidking.net/embed",
+  },
+  { id: "vidsrc_ru_hi", name: "Source 4 (Hindi)", url: "https://vidsrc-embed.ru/embed" },
 ];
 
 function buildEmbedUrl(
@@ -40,18 +64,18 @@ function buildEmbedUrl(
   tmdbId: number,
   season: number,
   episode: number,
-  sourceId: string = "vidsrc_xyz",
+  sourceId: string = "vidlink",
 ): string {
-  if (sourceId === "vidsrc_me") {
-    return mediaType === "tv"
-      ? `https://vidsrc.me/embed/${tmdbId}/${season}-${episode}/`
-      : `https://vidsrc.me/embed/${tmdbId}/`;
-  }
-
   if (sourceId === "vidsrc_to") {
     return mediaType === "tv"
       ? `https://vidsrc.to/embed/tv/${tmdbId}/${season}/${episode}`
       : `https://vidsrc.to/embed/movie/${tmdbId}`;
+  }
+
+  if (sourceId === "vidsrc_ru_hi") {
+    return mediaType === "tv"
+      ? `https://vidsrc-embed.ru/embed/tv?tmdb=${tmdbId}&season=${season}&episode=${episode}&ds_lang=hi&autoplay=1`
+      : `https://vidsrc-embed.ru/embed/movie?tmdb=${tmdbId}&ds_lang=hi&autoplay=1`;
   }
 
   if (sourceId === "vidking") {
@@ -60,10 +84,33 @@ function buildEmbedUrl(
       : `https://www.vidking.net/embed/movie/${tmdbId}`;
   }
 
-  // Default to vidsrc.xyz
+  // Default to vidlink
   return mediaType === "tv"
-    ? `https://vidsrc.xyz/embed/tv/${tmdbId}/${season}/${episode}`
-    : `https://vidsrc.xyz/embed/movie/${tmdbId}`;
+    ? `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}?autoplay=1`
+    : `https://vidlink.pro/movie/${tmdbId}?autoplay=1`;
+}
+
+function buildWatchPath(
+  mediaType: MediaType,
+  tmdbId: number,
+  season: number,
+  episode: number,
+  sourceId: string,
+): string {
+  const params = new URLSearchParams();
+  if (mediaType === "tv") {
+    params.set("season", String(season));
+    params.set("episode", String(episode));
+  }
+  if (sourceId && sourceId !== "vidlink") {
+    params.set("source", sourceId);
+  }
+  const query = params.toString();
+  return `/watch/${mediaType}/${tmdbId}${query ? `?${query}` : ""}`;
+}
+
+function buildTitlePath(mediaType: MediaType, tmdbId: number): string {
+  return `/title/${mediaType}/${tmdbId}`;
 }
 
 function posterUrl(path: string | null): string | null {
@@ -81,16 +128,24 @@ function backdropUrl(path: string | null): string | null {
 export default function StreamDashboard({
   categories,
   fallbackMovieId,
+  initialPlayback,
+  initialDetail,
 }: StreamDashboardProps) {
   const INTRO_POPUP_MS = 1500;
   const INTRO_POPUP_EXPIRY_KEY = "desi_intro_popup_expiry";
+  const router = useRouter();
+  const pathname = usePathname();
+  const isWatchRoute = pathname?.startsWith("/watch/") ?? false;
+  const isTitleRoute = pathname?.startsWith("/title/") ?? false;
   const [showIntroPopup, setShowIntroPopup] = useState(true);
-  const [selectedMediaType, setSelectedMediaType] =
-    useState<MediaType>("movie");
-  const [selectedMovieId, setSelectedMovieId] =
-    useState<number>(fallbackMovieId);
-  const [season, setSeason] = useState<number>(1);
-  const [episode, setEpisode] = useState<number>(1);
+  const [selectedMediaType, setSelectedMediaType] = useState<MediaType>(
+    initialPlayback?.mediaType ?? "movie",
+  );
+  const [selectedMovieId, setSelectedMovieId] = useState<number>(
+    initialPlayback?.id ?? fallbackMovieId,
+  );
+  const [season, setSeason] = useState<number>(initialPlayback?.season ?? 1);
+  const [episode, setEpisode] = useState<number>(initialPlayback?.episode ?? 1);
   const [selectedMovieDetails, setSelectedMovieDetails] =
     useState<SearchResult | null>(null);
 
@@ -98,7 +153,7 @@ export default function StreamDashboard({
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNavbarBlack, setIsNavbarBlack] = useState(false);
-  const [isPlayerOpen, setIsPlayerOpen] = useState(false);
+  const [isPlayerOpen, setIsPlayerOpen] = useState(Boolean(initialPlayback));
   const [isMuted, setIsMuted] = useState(true);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<
@@ -121,7 +176,9 @@ export default function StreamDashboard({
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [detailSeason, setDetailSeason] = useState(1);
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
-  const [selectedSource, setSelectedSource] = useState<string>("vidsrc_xyz");
+  const [selectedSource, setSelectedSource] = useState<string>(
+    initialPlayback?.sourceId ?? "vidlink",
+  );
 
   const categoryNavItems = useMemo(() => {
     return categories.map((category) => ({
@@ -220,6 +277,87 @@ export default function StreamDashboard({
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  useEffect(() => {
+    if (!initialPlayback) return;
+    setSelectedMediaType(initialPlayback.mediaType);
+    setSelectedMovieId(initialPlayback.id);
+    setSeason(initialPlayback.season ?? 1);
+    setEpisode(initialPlayback.episode ?? 1);
+    setSelectedSource(initialPlayback.sourceId ?? "vidlink");
+    setIsPlayerOpen(true);
+  }, [
+    initialPlayback?.id,
+    initialPlayback?.mediaType,
+    initialPlayback?.season,
+    initialPlayback?.episode,
+    initialPlayback?.sourceId,
+  ]);
+
+  useEffect(() => {
+    if (!initialDetail) return;
+    let isActive = true;
+
+    const placeholder: SearchResult = {
+      id: initialDetail.id,
+      title: "Loading...",
+      overview: "",
+      posterPath: null,
+      backdropPath: null,
+      releaseDate: "",
+      rating: 0,
+      mediaType: initialDetail.mediaType,
+    };
+
+    setDetailMovie(placeholder);
+    setDetailData(null);
+    setDetailSeason(1);
+    setIsLoadingDetail(true);
+
+    async function fetchInitialDetail() {
+      try {
+        const res = await fetch(
+          `/api/movies/details?id=${initialDetail.id}&type=${initialDetail.mediaType}&season=1`,
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!isActive) return;
+        setDetailMovie(data);
+        setDetailData(data);
+      } catch {
+        /* fall back to placeholder */
+      } finally {
+        if (isActive) setIsLoadingDetail(false);
+      }
+    }
+
+    fetchInitialDetail();
+
+    return () => {
+      isActive = false;
+    };
+  }, [initialDetail?.id, initialDetail?.mediaType]);
+
+  useEffect(() => {
+    if (!isWatchRoute || !isPlayerOpen) return;
+    const nextPath = buildWatchPath(
+      selectedMediaType,
+      selectedMovieId,
+      season,
+      episode,
+      selectedSource,
+    );
+    router.replace(nextPath);
+  }, [
+    isWatchRoute,
+    isPlayerOpen,
+    selectedMediaType,
+    selectedMovieId,
+    season,
+    episode,
+    selectedSource,
+    router,
+  ]);
 
   // Fetch movie details when ID changes
   useEffect(() => {
@@ -328,12 +466,25 @@ export default function StreamDashboard({
     }
   }
 
-  function playMovie(movie: MovieSummary | SearchResult) {
-    setSelectedMovieId(movie.id);
-    setSelectedMediaType(movie.mediaType);
-    setSeason(1);
-    setEpisode(1);
-    setIsPlayerOpen(true);
+  function closePlayer() {
+    setIsPlayerOpen(false);
+    if (isWatchRoute) router.push("/");
+  }
+
+  function closeDetail() {
+    setDetailMovie(null);
+    setDetailData(null);
+    if (isTitleRoute) router.push("/");
+  }
+
+  function playMovie(
+    movie: MovieSummary | SearchResult,
+    options?: { season?: number; episode?: number; sourceId?: string },
+  ) {
+    const nextSeason = movie.mediaType === "tv" ? (options?.season ?? 1) : 1;
+    const nextEpisode = movie.mediaType === "tv" ? (options?.episode ?? 1) : 1;
+    const nextSource = options?.sourceId ?? selectedSource;
+
     setDetailMovie(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
 
@@ -344,26 +495,20 @@ export default function StreamDashboard({
       );
       return [movie, ...filtered].slice(0, 10);
     });
+
+    router.push(
+      buildWatchPath(
+        movie.mediaType,
+        movie.id,
+        nextSeason,
+        nextEpisode,
+        nextSource,
+      ),
+    );
   }
 
-  async function openDetail(movie: MovieSummary | SearchResult) {
-    setDetailMovie(movie);
-    setDetailData(null);
-    setDetailSeason(1);
-    setIsLoadingDetail(true);
-    try {
-      const res = await fetch(
-        `/api/movies/details?id=${movie.id}&type=${movie.mediaType}&season=1`,
-      );
-      if (res.ok) {
-        const data = await res.json();
-        setDetailData(data);
-      }
-    } catch {
-      /* use basic info */
-    } finally {
-      setIsLoadingDetail(false);
-    }
+  function openDetail(movie: MovieSummary | SearchResult) {
+    router.push(buildTitlePath(movie.mediaType, movie.id));
   }
 
   useEffect(() => {
@@ -479,7 +624,7 @@ export default function StreamDashboard({
               <button
                 onClick={() => {
                   setActiveSection("home");
-                  setIsPlayerOpen(false);
+                  closePlayer();
                   setSelectedGenre(null);
                 }}
                 className={`transition-colors hover:text-gray-300 ${activeSection === "home" ? "text-white font-bold" : "text-gray-400"}`}
@@ -489,7 +634,7 @@ export default function StreamDashboard({
               <button
                 onClick={() => {
                   setActiveSection("tv");
-                  setIsPlayerOpen(false);
+                  closePlayer();
                   setSelectedGenre(null);
                 }}
                 className={`transition-colors hover:text-gray-300 ${activeSection === "tv" ? "text-white font-bold" : "text-gray-400"}`}
@@ -499,7 +644,7 @@ export default function StreamDashboard({
               <button
                 onClick={() => {
                   setActiveSection("movies");
-                  setIsPlayerOpen(false);
+                  closePlayer();
                   setSelectedGenre(null);
                 }}
                 className={`transition-colors hover:text-gray-300 ${activeSection === "movies" ? "text-white font-bold" : "text-gray-400"}`}
@@ -509,7 +654,7 @@ export default function StreamDashboard({
               <button
                 onClick={() => {
                   setActiveSection("new-popular");
-                  setIsPlayerOpen(false);
+                  closePlayer();
                   setSelectedGenre(null);
                   setSelectedCategoryKey(null);
                 }}
@@ -520,7 +665,7 @@ export default function StreamDashboard({
               <button
                 onClick={() => {
                   setActiveSection("categories");
-                  setIsPlayerOpen(false);
+                  closePlayer();
                   setSelectedGenre(null);
                   setSelectedCategoryKey(
                     (prev) => prev ?? categories[0]?.key ?? null,
@@ -533,7 +678,7 @@ export default function StreamDashboard({
               <button
                 onClick={() => {
                   setActiveSection("my-list");
-                  setIsPlayerOpen(false);
+                  closePlayer();
                   setSelectedGenre(null);
                   setSelectedCategoryKey(null);
                 }}
@@ -632,7 +777,7 @@ export default function StreamDashboard({
           <button
             onClick={() => {
               setActiveSection("home");
-              setIsPlayerOpen(false);
+              closePlayer();
               setSelectedGenre(null);
             }}
             className={`whitespace-nowrap rounded-full border px-3 py-1.5 transition-colors ${activeSection === "home" ? "border-white bg-white text-black" : "border-white/20 bg-black/35 text-gray-200"}`}
@@ -642,7 +787,7 @@ export default function StreamDashboard({
           <button
             onClick={() => {
               setActiveSection("tv");
-              setIsPlayerOpen(false);
+              closePlayer();
               setSelectedGenre(null);
             }}
             className={`whitespace-nowrap rounded-full border px-3 py-1.5 transition-colors ${activeSection === "tv" ? "border-white bg-white text-black" : "border-white/20 bg-black/35 text-gray-200"}`}
@@ -652,7 +797,7 @@ export default function StreamDashboard({
           <button
             onClick={() => {
               setActiveSection("movies");
-              setIsPlayerOpen(false);
+              closePlayer();
               setSelectedGenre(null);
             }}
             className={`whitespace-nowrap rounded-full border px-3 py-1.5 transition-colors ${activeSection === "movies" ? "border-white bg-white text-black" : "border-white/20 bg-black/35 text-gray-200"}`}
@@ -662,7 +807,7 @@ export default function StreamDashboard({
           <button
             onClick={() => {
               setActiveSection("new-popular");
-              setIsPlayerOpen(false);
+              closePlayer();
               setSelectedGenre(null);
               setSelectedCategoryKey(null);
             }}
@@ -673,7 +818,7 @@ export default function StreamDashboard({
           <button
             onClick={() => {
               setActiveSection("categories");
-              setIsPlayerOpen(false);
+              closePlayer();
               setSelectedGenre(null);
               setSelectedCategoryKey(
                 (prev) => prev ?? categories[0]?.key ?? null,
@@ -686,7 +831,7 @@ export default function StreamDashboard({
           <button
             onClick={() => {
               setActiveSection("my-list");
-              setIsPlayerOpen(false);
+              closePlayer();
               setSelectedGenre(null);
               setSelectedCategoryKey(null);
             }}
@@ -769,9 +914,11 @@ export default function StreamDashboard({
                 src={embedUrl}
                 className="h-full w-full border-0"
                 allowFullScreen
+                allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+                referrerPolicy="origin"
               />
               <button
-                onClick={() => setIsPlayerOpen(false)}
+                onClick={closePlayer}
                 className="absolute right-3 top-3 z-50 rounded-full bg-black/60 p-2 text-white transition-all hover:scale-110 hover:bg-black/80 md:right-8 md:top-8"
                 title="Close Player"
               >
@@ -1275,7 +1422,7 @@ export default function StreamDashboard({
       {detailMovie && (
         <div
           className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 md:p-8"
-          onClick={() => setDetailMovie(null)}
+          onClick={closeDetail}
         >
           {/* Backdrop blur */}
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
@@ -1310,7 +1457,7 @@ export default function StreamDashboard({
 
               {/* Close button */}
               <button
-                onClick={() => setDetailMovie(null)}
+                onClick={closeDetail}
                 className="absolute top-4 right-4 flex h-9 w-9 items-center justify-center rounded-full bg-zinc-800/80 text-white backdrop-blur-sm hover:bg-zinc-700 transition-colors"
               >
                 <X className="h-5 w-5" />
@@ -1450,15 +1597,12 @@ export default function StreamDashboard({
                         <div
                           key={ep.id}
                           className="group/ep flex flex-col items-start gap-3 rounded-lg border border-transparent p-3 transition-colors hover:border-white/10 hover:bg-zinc-800 sm:flex-row sm:items-center sm:gap-4 sm:p-4"
-                          onClick={() => {
-                            setSelectedMovieId(detailMovie.id);
-                            setSelectedMediaType("tv");
-                            setSeason(detailSeason);
-                            setEpisode(ep.episode_number);
-                            setIsPlayerOpen(true);
-                            setDetailMovie(null);
-                            window.scrollTo({ top: 0, behavior: "smooth" });
-                          }}
+                          onClick={() =>
+                            playMovie(detailMovie, {
+                              season: detailSeason,
+                              episode: ep.episode_number,
+                            })
+                          }
                         >
                           <span className="w-6 text-xl font-bold text-gray-500">
                             {ep.episode_number}
