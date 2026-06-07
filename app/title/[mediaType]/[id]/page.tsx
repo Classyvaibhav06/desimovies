@@ -4,7 +4,7 @@ import { getCategoryMovies } from "@/lib/tmdb";
 const defaultMovieId = 1078605;
 
 type PageProps = {
-  params: { mediaType: string; id: string };
+  params: Promise<{ mediaType: string; id: string }>;
 };
 
 function parseMediaType(value: string) {
@@ -24,8 +24,9 @@ export default async function TitlePage({ params }: PageProps) {
       categories.find((category) => category.movies.length > 0)?.movies[0]
         ?.id ?? defaultMovieId;
 
-    const mediaType = parseMediaType(params.mediaType);
-    const id = parseNumber(params.id, firstMovieId);
+    const { mediaType: rawMediaType, id: rawId } = await params;
+    const mediaType = parseMediaType(rawMediaType);
+    const id = parseNumber(rawId, firstMovieId);
 
     return (
       <StreamDashboard

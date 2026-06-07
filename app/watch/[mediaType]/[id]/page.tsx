@@ -4,8 +4,8 @@ import { getCategoryMovies } from "@/lib/tmdb";
 const defaultMovieId = 1078605;
 
 type PageProps = {
-  params: { mediaType: string; id: string };
-  searchParams?: { season?: string; episode?: string; source?: string };
+  params: Promise<{ mediaType: string; id: string }>;
+  searchParams?: Promise<{ season?: string; episode?: string; source?: string }>;
 };
 
 function parseMediaType(value: string) {
@@ -25,11 +25,13 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
       categories.find((category) => category.movies.length > 0)?.movies[0]
         ?.id ?? defaultMovieId;
 
-    const mediaType = parseMediaType(params.mediaType);
-    const id = parseNumber(params.id, firstMovieId);
-    const season = parseNumber(searchParams?.season, 1);
-    const episode = parseNumber(searchParams?.episode, 1);
-    const sourceId = searchParams?.source;
+    const { mediaType: rawMediaType, id: rawId } = await params;
+    const sp = await (searchParams ?? Promise.resolve({}));
+    const mediaType = parseMediaType(rawMediaType);
+    const id = parseNumber(rawId, firstMovieId);
+    const season = parseNumber(sp.season, 1);
+    const episode = parseNumber(sp.episode, 1);
+    const sourceId = sp.source;
 
     return (
       <StreamDashboard
