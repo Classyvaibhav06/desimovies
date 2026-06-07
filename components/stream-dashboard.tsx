@@ -395,25 +395,25 @@ export default function StreamDashboard({
         ? myList
         : activeSection === "categories"
           ? ((selectedCategoryKey
-              ? categories.find((c) => c.key === selectedCategoryKey)?.movies
-              : categories[0]?.movies) ?? [])
+            ? categories.find((c) => c.key === selectedCategoryKey)?.movies
+            : categories[0]?.movies) ?? [])
           : activeSection === "home"
             ? categories.flatMap((c) => c.movies)
             : activeSection === "tv"
               ? categories
-                  .filter((c) => c.mediaType === "tv")
-                  .flatMap((c) => c.movies)
+                .filter((c) => c.mediaType === "tv")
+                .flatMap((c) => c.movies)
               : activeSection === "movies"
                 ? categories
-                    .filter((c) => c.mediaType === "movie")
-                    .flatMap((c) => c.movies)
+                  .filter((c) => c.mediaType === "movie")
+                  .flatMap((c) => c.movies)
                 : categories
-                    .filter((c) =>
-                      ["new-movies", "new-tv", "upcoming", "trending"].includes(
-                        c.key,
-                      ),
-                    )
-                    .flatMap((c) => c.movies);
+                  .filter((c) =>
+                    ["new-movies", "new-tv", "upcoming", "trending"].includes(
+                      c.key,
+                    ),
+                  )
+                  .flatMap((c) => c.movies);
 
     // Try to find "The Boys" or a prominent item in the list
     const featured = list.find(
@@ -577,8 +577,8 @@ export default function StreamDashboard({
       );
       return exists
         ? prev.filter(
-            (m) => !(m.id === movie.id && m.mediaType === movie.mediaType),
-          )
+          (m) => !(m.id === movie.id && m.mediaType === movie.mediaType),
+        )
         : [movie, ...prev];
     });
   }
@@ -850,11 +850,10 @@ export default function StreamDashboard({
                   <button
                     key={item.key}
                     onClick={() => setSelectedCategoryKey(item.key)}
-                    className={`group/category rounded-xl border px-3 py-2 text-left transition-all duration-300 ${
-                      isActive
+                    className={`group/category rounded-xl border px-3 py-2 text-left transition-all duration-300 ${isActive
                         ? "border-rose-400/80 bg-gradient-to-br from-rose-500/30 to-amber-400/20 text-white shadow-lg shadow-rose-700/20"
                         : "border-white/10 bg-white/5 text-gray-200 hover:border-white/40 hover:bg-white/10"
-                    }`}
+                      }`}
                   >
                     <p className="text-[11px] font-semibold uppercase tracking-wide">
                       {item.label}
@@ -882,8 +881,8 @@ export default function StreamDashboard({
               <h2 className="text-2xl font-bold text-white capitalize sm:text-3xl">
                 {activeSection === "categories"
                   ? (categoryNavItems.find(
-                      (item) => item.key === selectedCategoryKey,
-                    )?.label ?? "Categories")
+                    (item) => item.key === selectedCategoryKey,
+                  )?.label ?? "Categories")
                   : activeSection}
               </h2>
               {(activeSection === "movies" || activeSection === "tv") && (
@@ -1181,7 +1180,7 @@ export default function StreamDashboard({
                           {/* Card */}
                           <div className="relative h-full w-full overflow-hidden rounded-lg shadow-xl bg-zinc-900 transition-all duration-300 group-hover/card:scale-110 group-hover/card:shadow-[0_20px_60px_rgba(0,0,0,0.8)] group-hover/card:z-40 group-hover/card:ring-2 group-hover/card:ring-white/20">
                             {posterUrl(movie.posterPath) ||
-                            backdropUrl(movie.backdropPath) ? (
+                              backdropUrl(movie.backdropPath) ? (
                               <Image
                                 src={
                                   posterUrl(movie.posterPath) ||
@@ -1226,11 +1225,10 @@ export default function StreamDashboard({
                                     e.stopPropagation();
                                     toggleMyList(movie);
                                   }}
-                                  className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-200 hover:scale-110 flex-shrink-0 ${
-                                    isInMyList(movie)
+                                  className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-200 hover:scale-110 flex-shrink-0 ${isInMyList(movie)
                                       ? "border-white bg-white text-black"
                                       : "border-gray-400 bg-transparent text-white hover:border-white"
-                                  }`}
+                                    }`}
                                   title={
                                     isInMyList(movie)
                                       ? "Remove from My List"
@@ -1370,7 +1368,7 @@ export default function StreamDashboard({
                     }}
                   >
                     {posterUrl(movie.posterPath) ||
-                    backdropUrl(movie.backdropPath) ? (
+                      backdropUrl(movie.backdropPath) ? (
                       <Image
                         src={
                           posterUrl(movie.posterPath) ||
@@ -1435,7 +1433,7 @@ export default function StreamDashboard({
             {/* Backdrop image header */}
             <div className="relative h-52 w-full sm:h-64 md:h-80">
               {backdropUrl((detailData ?? detailMovie).backdropPath) ||
-              posterUrl((detailData ?? detailMovie).posterPath) ? (
+                posterUrl((detailData ?? detailMovie).posterPath) ? (
                 <Image
                   src={
                     backdropUrl((detailData ?? detailMovie).backdropPath) ||
@@ -1522,11 +1520,10 @@ export default function StreamDashboard({
                     </button>
                     <button
                       onClick={() => toggleMyList(detailMovie)}
-                      className={`flex items-center justify-center h-10 w-10 rounded-full border-2 transition-all hover:scale-105 ${
-                        isInMyList(detailMovie)
+                      className={`flex items-center justify-center h-10 w-10 rounded-full border-2 transition-all hover:scale-105 ${isInMyList(detailMovie)
                           ? "border-white bg-white text-black"
                           : "border-gray-500 bg-transparent text-white hover:border-white"
-                      }`}
+                        }`}
                       title={
                         isInMyList(detailMovie)
                           ? "In My List"
