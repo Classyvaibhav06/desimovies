@@ -296,17 +296,18 @@ export default function StreamDashboard({
 
   useEffect(() => {
     if (!initialDetail) return;
+    const detail = initialDetail;
     let isActive = true;
 
     const placeholder: SearchResult = {
-      id: initialDetail.id,
+      id: detail.id,
       title: "Loading...",
       overview: "",
       posterPath: null,
       backdropPath: null,
       releaseDate: "",
       rating: 0,
-      mediaType: initialDetail.mediaType,
+      mediaType: detail.mediaType,
     };
 
     setDetailMovie(placeholder);
@@ -317,7 +318,7 @@ export default function StreamDashboard({
     async function fetchInitialDetail() {
       try {
         const res = await fetch(
-          `/api/movies/details?id=${initialDetail.id}&type=${initialDetail.mediaType}&season=1`,
+          `/api/movies/details?id=${detail.id}&type=${detail.mediaType}&season=1`,
         );
         if (!res.ok) return;
         const data = await res.json();

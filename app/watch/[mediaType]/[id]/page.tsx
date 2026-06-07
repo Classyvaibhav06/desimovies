@@ -26,7 +26,7 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
         ?.id ?? defaultMovieId;
 
     const { mediaType: rawMediaType, id: rawId } = await params;
-    const sp = await (searchParams ?? Promise.resolve({}));
+    const sp: { season?: string; episode?: string; source?: string } = searchParams ? await searchParams : {};
     const mediaType = parseMediaType(rawMediaType);
     const id = parseNumber(rawId, firstMovieId);
     const season = parseNumber(sp.season, 1);
