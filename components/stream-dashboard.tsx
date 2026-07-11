@@ -56,7 +56,7 @@ const EMBED_SOURCES = [
     name: "Source 3 (Fast)",
     url: "https://www.vidking.net/embed",
   },
-  { id: "vidsrc_ru_hi", name: "Source 4 (Hindi)", url: "https://vidsrc-embed.ru/embed" },
+  { id: "multiembed", name: "Source 4 (Multi)", url: "https://multiembed.mov" },
 ];
 
 function buildEmbedUrl(
@@ -72,10 +72,10 @@ function buildEmbedUrl(
       : `https://vidsrc.to/embed/movie/${tmdbId}`;
   }
 
-  if (sourceId === "vidsrc_ru_hi") {
+  if (sourceId === "multiembed") {
     return mediaType === "tv"
-      ? `https://vidsrc-embed.ru/embed/tv?tmdb=${tmdbId}&season=${season}&episode=${episode}&ds_lang=hi&autoplay=1`
-      : `https://vidsrc-embed.ru/embed/movie?tmdb=${tmdbId}&ds_lang=hi&autoplay=1`;
+      ? `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1&s=${season}&e=${episode}`
+      : `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1`;
   }
 
   if (sourceId === "vidking") {
@@ -125,6 +125,79 @@ function backdropUrl(path: string | null): string | null {
   return `https://image.tmdb.org/t/p/original${path}`;
 }
 
+const LIVE_SPORTS_CHANNELS = [
+  {
+    id: "sony-ten-3",
+    title: "Sony Ten 3 HD - Live Stream",
+    category: "Sony Sports Network",
+    status: "LIVE",
+    score: "Live Sports Broadcast",
+    odds: "Sony Sports Ten 3 Live SD/HD Channel",
+    backdropPath: "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?q=80&w=800",
+    embedUrl: "https://dlhd.st/stream/stream-49.php",
+  },
+  {
+    id: "sony-ten-1",
+    title: "FIFA 2026 - Live Stream",
+    category: "Sony Sports Network",
+    status: "LIVE",
+    score: "Live Sports Broadcast",
+    odds: "FIFA 2026  Live HD",
+    backdropPath: "https://imgs.search.brave.com/hooCbBTnMa_WTRo1DBU9tdIQu05HX8yXN4j-Ee_hhjI/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly9tZWRp/YS5nZXR0eWltYWdl/cy5jb20vaWQvMjI4/MDU3NzU0OC9waG90/by9rYW5zYXMtY2l0/eS1taXNzb3VyaS1h/LWdlbmVyYWwtdmll/dy1vZi1maWZhLXdv/cmxkLWN1cC0yMDI2/LXNpZ25hZ2UtYXQt/a2Fuc2FzLWNpdHkt/c3RhZGl1bS1vbi5q/cGc_cz02MTJ4NjEy/Jnc9MCZrPTIwJmM9/dVJ4NUFOeHdxSzhx/QW1lR1RXaUJqMUhS/M1IzSF9Ld1RrMllP/RHl3RW1oUT0",
+    embedUrl: "https://dlhd.st/watch/stream-350.php",
+  },
+  {
+    id: "sports-1",
+    title: "India vs Pakistan - ICC T20 World Cup",
+    category: "Cricket",
+    status: "LIVE",
+    score: "IND 156/4 (17.2) • PAK 152/8 (20.0)",
+    odds: "India needs 15 runs in 16 balls to win",
+    backdropPath: "https://images.unsplash.com/photo-1540747737956-37872404f80f?q=80&w=800",
+    embedUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
+  },
+  {
+    id: "sports-2",
+    title: "Real Madrid vs Barcelona - El Clásico",
+    category: "Football",
+    status: "LIVE",
+    score: "RMA 2 - 1 BAR (78')",
+    odds: "Live from Santiago Bernabéu Stadium",
+    backdropPath: "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?q=80&w=800",
+    embedUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
+  },
+  {
+    id: "sports-3",
+    title: "Formula 1 Monaco Grand Prix - Main Race",
+    category: "Motorsport",
+    status: "LIVE",
+    score: "Lap 52/78 • Leclerc (P1), Piastri (P2)",
+    odds: "Weather: Dry, 24°C",
+    backdropPath: "https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?q=80&w=800",
+    embedUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
+  },
+  {
+    id: "sports-4",
+    title: "Wimbledon Men's Final - Carlos Alcaraz vs Jannik Sinner",
+    category: "Tennis",
+    status: "LIVE",
+    score: "Set 4: Alcaraz (2) 6-4, 3-6, 7-6, 4-2 Sinner (1)",
+    odds: "Live from Centre Court",
+    backdropPath: "https://images.unsplash.com/photo-1595435934249-5df7ed86e1c0?q=80&w=800",
+    embedUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
+  },
+  {
+    id: "sports-5",
+    title: "NBA Finals - Game 7: Celtics vs Lakers",
+    category: "Basketball",
+    status: "LIVE",
+    score: "BOS 104 - 102 LAL (Q4 0:42)",
+    odds: "Live from TD Garden",
+    backdropPath: "https://images.unsplash.com/photo-1546519638-68e109498ffc?q=80&w=800",
+    embedUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
+  }
+];
+
 export default function StreamDashboard({
   categories,
   fallbackMovieId,
@@ -157,11 +230,13 @@ export default function StreamDashboard({
   const [isMuted, setIsMuted] = useState(true);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<
-    "home" | "tv" | "movies" | "new-popular" | "my-list" | "categories"
+    "home" | "tv" | "movies" | "new-popular" | "my-list" | "categories" | "sports"
   >("home");
   const [selectedCategoryKey, setSelectedCategoryKey] = useState<string | null>(
     null,
   );
+  const [selectedSportsChannel, setSelectedSportsChannel] = useState<any | null>(null);
+  const sportsHero = useMemo(() => LIVE_SPORTS_CHANNELS[0], []);
   const [myList, setMyList] = useState<(MovieSummary | SearchResult)[]>([]);
   const [watchHistory, setWatchHistory] = useState<
     (MovieSummary | SearchResult)[]
@@ -379,15 +454,19 @@ export default function StreamDashboard({
   }, [selectedMovieId, selectedMediaType]);
 
   const embedUrl = useMemo(
-    () =>
-      buildEmbedUrl(
+    () => {
+      if (selectedSportsChannel) {
+        return selectedSportsChannel.embedUrl;
+      }
+      return buildEmbedUrl(
         selectedMediaType,
         selectedMovieId,
         season,
         episode,
         selectedSource,
-      ),
-    [selectedMediaType, selectedMovieId, season, episode, selectedSource],
+      );
+    },
+    [selectedMediaType, selectedMovieId, season, episode, selectedSource, selectedSportsChannel],
   );
 
   const heroMovie = useMemo(() => {
@@ -469,7 +548,14 @@ export default function StreamDashboard({
 
   function closePlayer() {
     setIsPlayerOpen(false);
+    setSelectedSportsChannel(null);
     if (isWatchRoute) router.push("/");
+  }
+
+  function playSports(channel: any) {
+    setSelectedSportsChannel(channel);
+    setIsPlayerOpen(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -536,6 +622,7 @@ export default function StreamDashboard({
 
   const filteredCategories = useMemo(() => {
     let base = categories;
+    if (activeSection === "sports") return [];
     if (activeSection === "my-list")
       return [
         {
@@ -694,6 +781,20 @@ export default function StreamDashboard({
                   </span>
                 )}
               </button>
+              <button
+                onClick={() => {
+                  setActiveSection("sports");
+                  closePlayer();
+                  setSelectedGenre(null);
+                  setSelectedCategoryKey(null);
+                }}
+                className={`transition-colors hover:text-gray-300 ${activeSection === "sports" ? "text-white font-bold" : "text-gray-400"}`}
+              >
+                Live Sports
+                <span className="ml-1.5 inline-flex items-center rounded bg-red-600 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-white animate-pulse">
+                  Live
+                </span>
+              </button>
             </div>
           </div>
 
@@ -842,6 +943,17 @@ export default function StreamDashboard({
           >
             My List {myList.length > 0 ? `(${myList.length})` : ""}
           </button>
+          <button
+            onClick={() => {
+              setActiveSection("sports");
+              closePlayer();
+              setSelectedGenre(null);
+              setSelectedCategoryKey(null);
+            }}
+            className={`whitespace-nowrap rounded-full border px-3 py-1.5 transition-colors ${activeSection === "sports" ? "border-white bg-white text-black" : "border-white/20 bg-black/35 text-gray-200"}`}
+          >
+            Live Sports
+          </button>
         </div>
 
         {activeSection === "categories" && categoryNavItems.length > 0 && (
@@ -854,8 +966,8 @@ export default function StreamDashboard({
                     key={item.key}
                     onClick={() => setSelectedCategoryKey(item.key)}
                     className={`group/category rounded-xl border px-3 py-2 text-left transition-all duration-300 ${isActive
-                        ? "border-rose-400/80 bg-gradient-to-br from-rose-500/30 to-amber-400/20 text-white shadow-lg shadow-rose-700/20"
-                        : "border-white/10 bg-white/5 text-gray-200 hover:border-white/40 hover:bg-white/10"
+                      ? "border-rose-400/80 bg-gradient-to-br from-rose-500/30 to-amber-400/20 text-white shadow-lg shadow-rose-700/20"
+                      : "border-white/10 bg-white/5 text-gray-200 hover:border-white/40 hover:bg-white/10"
                       }`}
                   >
                     <p className="text-[11px] font-semibold uppercase tracking-wide">
@@ -929,24 +1041,26 @@ export default function StreamDashboard({
             </div>
 
             <div className="flex flex-wrap items-center gap-4 border-t border-white/10 bg-[#141414] px-4 py-4 md:px-12">
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">
-                  Source
-                </label>
-                <select
-                  value={selectedSource}
-                  onChange={(e) => setSelectedSource(e.target.value)}
-                  className="bg-zinc-800 text-white text-sm px-3 py-1.5 rounded border border-white/10 outline-none focus:border-red-600 transition-colors cursor-pointer"
-                >
-                  {EMBED_SOURCES.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {!selectedSportsChannel && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">
+                    Source
+                  </label>
+                  <select
+                    value={selectedSource}
+                    onChange={(e) => setSelectedSource(e.target.value)}
+                    className="bg-zinc-800 text-white text-sm px-3 py-1.5 rounded border border-white/10 outline-none focus:border-red-600 transition-colors cursor-pointer"
+                  >
+                    {EMBED_SOURCES.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
-              {selectedMediaType === "tv" && (
+              {selectedMediaType === "tv" && !selectedSportsChannel && (
                 <>
                   <div className="flex flex-col gap-1">
                     <label className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">
@@ -1028,9 +1142,9 @@ export default function StreamDashboard({
 
               <div className="w-full sm:ml-auto sm:w-auto">
                 <p className="text-sm font-medium text-white truncate max-w-xs">
-                  Playing: {selectedMovieDetails?.title}
+                  Playing: {selectedSportsChannel ? selectedSportsChannel.title : selectedMovieDetails?.title}
                 </p>
-                {selectedMediaType === "tv" && (
+                {selectedMediaType === "tv" && !selectedSportsChannel && (
                   <p className="text-xs text-gray-400">
                     S{season} E{episode}
                   </p>
@@ -1039,15 +1153,17 @@ export default function StreamDashboard({
             </div>
           </div>
         ) : (
-          heroMovie && (
+          (activeSection === "sports" ? sportsHero : heroMovie) && (
             <>
               <div className="absolute inset-0 z-0">
                 <Image
                   src={
-                    backdropUrl(heroMovie.backdropPath) ||
-                    posterUrl(heroMovie.posterPath)!
+                    activeSection === "sports"
+                      ? sportsHero.backdropPath
+                      : (backdropUrl(heroMovie.backdropPath) ||
+                        posterUrl(heroMovie.posterPath)!)
                   }
-                  alt={heroMovie.title}
+                  alt={activeSection === "sports" ? sportsHero.title : heroMovie.title}
                   fill
                   className="object-cover"
                   priority
@@ -1057,34 +1173,57 @@ export default function StreamDashboard({
               </div>
 
               <div className="absolute bottom-20 left-4 z-20 flex max-w-[90%] flex-col gap-3 sm:bottom-1/4 sm:max-w-xl sm:gap-4 md:left-12 lg:bottom-1/3">
+                {activeSection === "sports" && (
+                  <div className="flex items-center gap-1.5 rounded-full bg-red-600/90 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-white w-max shadow-lg animate-pulse">
+                    <span className="h-1.5 w-1.5 rounded-full bg-white animate-ping" />
+                    Live Match
+                  </div>
+                )}
                 <h1 className="animate-banner-text text-3xl font-extrabold uppercase italic tracking-tighter text-white drop-shadow-2xl sm:text-5xl md:text-7xl">
-                  {heroMovie.title}
+                  {activeSection === "sports" ? sportsHero.title : heroMovie.title}
                 </h1>
                 <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-white drop-shadow-md sm:gap-3 sm:text-sm">
-                  <span className="text-green-400">
-                    {heroMovie.rating * 10}% Match
-                  </span>
-                  <span>{heroMovie.releaseDate.slice(0, 4)}</span>
-                  <span className="border border-white/40 px-1 py-0.5 text-[10px] uppercase">
-                    HD
-                  </span>
-                  {heroMovie.mediaType === "tv" && (
-                    <span className="text-gray-300">TV Series</span>
+                  {activeSection === "sports" ? (
+                    <>
+                      <span className="text-green-400 font-extrabold">{sportsHero.category}</span>
+                      <span className="text-red-400 font-bold">{sportsHero.score}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-green-400">
+                        {heroMovie.rating * 10}% Match
+                      </span>
+                      <span>{heroMovie.releaseDate.slice(0, 4)}</span>
+                      <span className="border border-white/40 px-1 py-0.5 text-[10px] uppercase">
+                        HD
+                      </span>
+                      {heroMovie.mediaType === "tv" && (
+                        <span className="text-gray-300">TV Series</span>
+                      )}
+                    </>
                   )}
                 </div>
                 <p className="line-clamp-3 max-w-2xl text-sm text-white drop-shadow-md sm:text-base md:text-lg">
-                  {heroMovie.overview}
+                  {activeSection === "sports" ? sportsHero.odds : heroMovie.overview}
                 </p>
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                   <button
-                    onClick={() => playMovie(heroMovie)}
+                    onClick={() => {
+                      if (activeSection === "sports") {
+                        playSports(sportsHero);
+                      } else {
+                        playMovie(heroMovie);
+                      }
+                    }}
                     className="flex items-center gap-2 rounded bg-white px-5 py-2 text-sm font-bold text-black transition hover:bg-white/80 sm:px-8 sm:text-lg"
                   >
-                    <Play className="h-5 w-5 fill-black sm:h-6 sm:w-6" /> Play
+                    <Play className="h-5 w-5 fill-black sm:h-6 sm:w-6" /> Play Live
                   </button>
-                  <button className="flex items-center gap-2 rounded bg-gray-500/70 px-5 py-2 text-sm font-bold text-white transition hover:bg-gray-500/50 sm:px-8 sm:text-lg">
-                    <Info className="h-5 w-5 sm:h-6 sm:w-6" /> More Info
-                  </button>
+                  {activeSection !== "sports" && (
+                    <button className="flex items-center gap-2 rounded bg-gray-500/70 px-5 py-2 text-sm font-bold text-white transition hover:bg-gray-500/50 sm:px-8 sm:text-lg">
+                      <Info className="h-5 w-5 sm:h-6 sm:w-6" /> More Info
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1150,6 +1289,78 @@ export default function StreamDashboard({
                       <div className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/10" />
                       <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <Play className="h-10 w-10 text-white fill-white" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activeSection === "sports" && (
+              <div className="space-y-6 px-4 md:px-12">
+                <div className="flex flex-col gap-2 border-b border-white/10 pb-4">
+                  <h2 className="text-2xl font-black text-white sm:text-3xl flex items-center gap-2">
+                    Live Sports Streams
+                    <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-black uppercase tracking-wider text-white animate-pulse">
+                      Live Now
+                    </span>
+                  </h2>
+                  <p className="text-sm text-gray-400">
+                    Watch live coverage of major sporting events, including Cricket, Football, Motorsport, and more.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                  {LIVE_SPORTS_CHANNELS.map((channel) => (
+                    <div
+                      key={channel.id}
+                      onClick={() => playSports(channel)}
+                      className="group cursor-pointer overflow-hidden rounded-xl border border-white/5 bg-[#11131c] shadow-2xl transition-all duration-300 hover:scale-[1.03] hover:border-red-500/50 hover:shadow-red-950/20"
+                    >
+                      <div className="relative aspect-video w-full overflow-hidden">
+                        <Image
+                          src={channel.backdropPath}
+                          alt={channel.title}
+                          fill
+                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                          className="object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+
+                        {/* Live Badge */}
+                        <div className="absolute left-3 top-3 flex items-center gap-1.5 rounded bg-red-600 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-white shadow-md">
+                          <span className="h-1.5 w-1.5 rounded-full bg-white animate-ping" />
+                          {channel.status}
+                        </div>
+
+                        {/* Category badge */}
+                        <div className="absolute right-3 top-3 rounded bg-black/60 border border-white/10 px-2 py-0.5 text-[10px] font-bold text-gray-200">
+                          {channel.category}
+                        </div>
+
+                        {/* Play overlay */}
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
+                          <div className="rounded-full bg-red-600 p-3 shadow-lg shadow-red-600/30 transform scale-90 group-hover:scale-100 transition-transform duration-300">
+                            <Play className="h-6 w-6 text-white fill-white ml-0.5" />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-4 space-y-2">
+                        <h3 className="font-bold text-white text-base line-clamp-1 group-hover:text-red-400 transition-colors">
+                          {channel.title}
+                        </h3>
+
+                        {/* Live Score/Status */}
+                        <div className="rounded-lg bg-black/40 px-3 py-2 border border-white/5 flex flex-col gap-1">
+                          <span className="text-xs font-semibold text-green-400 flex items-center gap-1">
+                            <span className="h-1 w-1 rounded-full bg-green-400 animate-pulse" />
+                            {channel.score}
+                          </span>
+                          <span className="text-[11px] text-gray-400">
+                            {channel.odds}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1229,8 +1440,8 @@ export default function StreamDashboard({
                                     toggleMyList(movie);
                                   }}
                                   className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-200 hover:scale-110 flex-shrink-0 ${isInMyList(movie)
-                                      ? "border-white bg-white text-black"
-                                      : "border-gray-400 bg-transparent text-white hover:border-white"
+                                    ? "border-white bg-white text-black"
+                                    : "border-gray-400 bg-transparent text-white hover:border-white"
                                     }`}
                                   title={
                                     isInMyList(movie)
@@ -1524,8 +1735,8 @@ export default function StreamDashboard({
                     <button
                       onClick={() => toggleMyList(detailMovie)}
                       className={`flex items-center justify-center h-10 w-10 rounded-full border-2 transition-all hover:scale-105 ${isInMyList(detailMovie)
-                          ? "border-white bg-white text-black"
-                          : "border-gray-500 bg-transparent text-white hover:border-white"
+                        ? "border-white bg-white text-black"
+                        : "border-gray-500 bg-transparent text-white hover:border-white"
                         }`}
                       title={
                         isInMyList(detailMovie)
