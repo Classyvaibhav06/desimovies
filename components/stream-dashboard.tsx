@@ -516,9 +516,8 @@ export default function StreamDashboard({
   const embedUrl = useMemo(
     () => {
       if (selectedSportsChannel) {
-        // Use server-side proxy to bypass DaddyLive's mobile User-Agent block.
-        // Without this, real phones are rejected while DevTools emulation passes.
-        return `/api/stream?server=${selectedSportsSource}&id=${selectedSportsChannel.id}`;
+        // Build the sports embed URL dynamically based on the selected server source and channel id
+        return `https://dlhd.st/${selectedSportsSource}/stream-${selectedSportsChannel.id}.php`;
       }
       return buildEmbedUrl(
         selectedMediaType,
@@ -1151,7 +1150,7 @@ export default function StreamDashboard({
                     Fullscreen ⛶
                   </button>
                   <a
-                    href={`https://dlhd.st/${selectedSportsSource}/stream-${selectedSportsChannel.id}.php`}
+                    href={embedUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex h-[38px] items-center gap-1.5 rounded bg-red-600 px-4 text-xs font-bold text-white transition-all hover:bg-red-700 hover:scale-[1.03] active:scale-95 shadow-md shadow-red-950/20"

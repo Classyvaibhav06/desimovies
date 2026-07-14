@@ -32,21 +32,8 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     return [
-      // ── Stream proxy route: fully permissive CSP ──────────────────────────
-      // DaddyLive pages load JWPlayer, HLS CDN scripts, etc. from unknown domains.
-      // Without this, our strict global CSP blocks their player scripts inside the iframe.
       {
-        source: "/api/stream",
-        headers: [
-          {
-            key: "Content-Security-Policy",
-            value: "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; frame-ancestors 'self'",
-          },
-        ],
-      },
-      // ── All other routes: strict CSP ──────────────────────────────────────
-      {
-        source: "/((?!api/stream).*)",
+        source: "/(.*)",
         headers: [
           {
             key: "Content-Security-Policy",
@@ -57,7 +44,7 @@ const nextConfig: NextConfig = {
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: blob: https://image.tmdb.org https://assets.fanart.tv https://m.media-amazon.com https://images.unsplash.com https://imgs.search.brave.com",
               "media-src 'self' blob: https:",
-              "frame-src 'self' https://vidlink.pro https://embed.su https://www.vidking.net https://vidsrc.me https://vidsrc.to https://vidsrc.xyz https://vidsrc-embed.ru https://vidsrc-embed.su https://vidsrcme.su https://vsrc.su https://dlhd.st https://www.youtube.com https://peachify.pro https://*.dlhd.st",
+              "frame-src https://vidlink.pro https://embed.su https://www.vidking.net https://vidsrc.me https://vidsrc.to https://vidsrc.xyz https://vidsrc-embed.ru https://vidsrc-embed.su https://vidsrcme.su https://vsrc.su https://dlhd.st https://www.youtube.com https://peachify.pro https://*.dlhd.st",
               "connect-src 'self' https://api.themoviedb.org https:",
             ].join("; "),
           },
