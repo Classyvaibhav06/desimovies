@@ -32,8 +32,21 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     return [
+      // ── Stream proxy route: fully permissive CSP ──────────────────────────
+      // DaddyLive pages load JWPlayer, HLS CDN scripts, etc. from unknown domains.
+      // Without this, our strict global CSP blocks their player scripts inside the iframe.
       {
-        source: "/(.*)",
+        source: "/api/stream",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; frame-ancestors 'self'",
+          },
+        ],
+      },
+      // ── All other routes: strict CSP ──────────────────────────────────────
+      {
+        source: "/((?!api/stream).*)",
         headers: [
           {
             key: "Content-Security-Policy",
