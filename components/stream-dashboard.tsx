@@ -1111,7 +1111,7 @@ export default function StreamDashboard({
                 scrolling="no"
                 allowFullScreen
                 allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
-                referrerPolicy="origin"
+                referrerPolicy="no-referrer"
                 style={{ pointerEvents: "auto" }}
               />
               <button
