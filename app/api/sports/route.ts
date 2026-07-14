@@ -5,14 +5,24 @@ export const dynamic = "force-dynamic";
 // Hardcoded fallback channels in case the API key is not configured yet
 const FALLBACK_CHANNELS = [
   {
-    channel_id: "49",
-    channel_name: "Sony Ten 3 HD",
-    logo_url: "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?q=80&w=800",
+    channel_id: "54",
+    channel_name: "FIFA 1",
+    logo_url: "https://imgs.search.brave.com/hooCbBTnMa_WTRo1DBU9tdIQu05HX8yXN4j-Ee_hhjI/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly9tZWRp/YS5nZXR0eWltYWdl/cy5jb20vaWQvMjI4/MDU3NzU0OC9waG90/by9rYW5zYXMtY2l0/eS1taXNzb3VyaS1h/LWdlbmVyYWwtdmll/dy1vZi1maWZhLXdv/cmxkLWN1cC0yMDI2/LXNpZ25hZ2UtYXQt/a2Fuc2FzLWNpdHkt/c3RhZGl1bS1vbi5q/cGc_cz02MTJ4NjEy/Jnc9MCZrPTIwJmM9/dVJ4NUFOeHdxSzhx/QW1lR1RXaUJqMUhS/M1IzSF9Ld1RrMllP/RHl3RW1oUT0",
+  },
+  {
+    channel_id: "768",
+    channel_name: "FIFA 2",
+    logo_url: "https://imgs.search.brave.com/hooCbBTnMa_WTRo1DBU9tdIQu05HX8yXN4j-Ee_hhjI/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly9tZWRp/YS5nZXR0eWltYWdl/cy5jb20vaWQvMjI4/MDU3NzU0OC9waG90/by9rYW5zYXMtY2l0/eS1taXNzb3VyaS1h/LWdlbmVyYWwtdmll/dy1vZi1maWZhLXdv/cmxkLWN1cC0yMDI2/LXNpZ25hZ2UtYXQt/a2Fuc2FzLWNpdHkt/c3RhZGl1bS1vbi5q/cGc_cz02MTJ4NjEy/Jnc9MCZrPTIwJmM9/dVJ4NUFOeHdxSzhx/QW1lR1RXaUJqMUhS/M1IzSF9Ld1RrMllP/RHl3RW1oUT0",
   },
   {
     channel_id: "350",
-    channel_name: "Sony Ten 1 HD",
+    channel_name: "FIFA 3",
     logo_url: "https://imgs.search.brave.com/hooCbBTnMa_WTRo1DBU9tdIQu05HX8yXN4j-Ee_hhjI/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly9tZWRp/YS5nZXR0eWltYWdl/cy5jb20vaWQvMjI4/MDU3NzU0OC9waG90/by9rYW5zYXMtY2l0/eS1taXNzb3VyaS1h/LWdlbmVyYWwtdmll/dy1vZi1maWZhLXdv/cmxkLWN1cC0yMDI2/LXNpZ25hZ2UtYXQt/a2Fuc2FzLWNpdHkt/c3RhZGl1bS1vbi5q/cGc_cz02MTJ4NjEy/Jnc9MCZrPTIwJmM9/dVJ4NUFOeHdxSzhx/QW1lR1RXaUJqMUhS/M1IzSF9Ld1RrMllP/RHl3RW1oUT0",
+  },
+  {
+    channel_id: "49",
+    channel_name: "Sony Ten 3 HD",
+    logo_url: "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?q=80&w=800",
   },
   {
     channel_id: "302",
