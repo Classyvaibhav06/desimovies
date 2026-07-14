@@ -3,7 +3,7 @@
 
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import type {
   CategoryWithMovies,
   SearchResult,
@@ -50,13 +50,21 @@ const EMBED_SOURCES = [
     name: "Source 1 (4K)",
     url: "https://vidlink.pro",
   },
-  { id: "vidsrc_to", name: "Source 2 (HD)", url: "https://vidsrc.to/embed" },
+  {
+    id: "peachify",
+    name: "Source 2 (HD)",
+    url: "https://peachify.pro",
+  },
   {
     id: "vidking",
     name: "Source 3 (Fast)",
     url: "https://www.vidking.net/embed",
   },
-  { id: "multiembed", name: "Source 4 (Multi)", url: "https://multiembed.mov" },
+  {
+    id: "vidsrc_to",
+    name: "Source 4 (Multi)",
+    url: "https://vidsrc.to/embed",
+  },
 ];
 
 function buildEmbedUrl(
@@ -66,16 +74,16 @@ function buildEmbedUrl(
   episode: number,
   sourceId: string = "vidlink",
 ): string {
+  if (sourceId === "peachify") {
+    return mediaType === "tv"
+      ? `https://peachify.pro/embed/tv/${tmdbId}/${season}/${episode}?accent=E50914&dub=Hindi`
+      : `https://peachify.pro/embed/movie/${tmdbId}?accent=E50914&dub=Hindi`;
+  }
+
   if (sourceId === "vidsrc_to") {
     return mediaType === "tv"
       ? `https://vidsrc.to/embed/tv/${tmdbId}/${season}/${episode}`
       : `https://vidsrc.to/embed/movie/${tmdbId}`;
-  }
-
-  if (sourceId === "multiembed") {
-    return mediaType === "tv"
-      ? `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1&s=${season}&e=${episode}`
-      : `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1`;
   }
 
   if (sourceId === "vidking") {
@@ -236,7 +244,35 @@ export default function StreamDashboard({
     null,
   );
   const [selectedSportsChannel, setSelectedSportsChannel] = useState<any | null>(null);
-  const sportsHero = useMemo(() => LIVE_SPORTS_CHANNELS[0], []);
+  
+  const [sportsChannels, setSportsChannels] = useState<any[]>([]);
+  const [sportsSchedule, setSportsSchedule] = useState<any>({});
+  const [isSportsLoading, setIsSportsLoading] = useState(false);
+  const [sportsTab, setSportsTab] = useState<"channels" | "schedule">("channels");
+  const [selectedSportsSource, setSelectedSportsSource] = useState<string>("watch");
+
+  const getLogoUrl = useCallback((url: string | undefined) => {
+    if (!url) return "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?q=80&w=800";
+    if (url.startsWith("http")) return url;
+    return `https://dlhd.st/${url}`;
+  }, []);
+
+  const sportsHero = useMemo(() => {
+    if (sportsChannels.length > 0) {
+      return {
+        id: sportsChannels[0].channel_id,
+        title: sportsChannels[0].channel_name,
+        category: "Live TV Channel",
+        status: "LIVE",
+        score: "Broadcasting Now",
+        odds: "Select a channel below to watch live streaming coverage",
+        backdropPath: getLogoUrl(sportsChannels[0].logo_url),
+        embedUrl: `https://dlhd.st/stream/stream-${sportsChannels[0].channel_id}.php`
+      };
+    }
+    return LIVE_SPORTS_CHANNELS[0];
+  }, [sportsChannels, getLogoUrl]);
+
   const [myList, setMyList] = useState<(MovieSummary | SearchResult)[]>([]);
   const [watchHistory, setWatchHistory] = useState<
     (MovieSummary | SearchResult)[]
@@ -254,6 +290,14 @@ export default function StreamDashboard({
   const [selectedSource, setSelectedSource] = useState<string>(
     initialPlayback?.sourceId ?? "vidlink",
   );
+
+  useEffect(() => {
+    const handleTouch = () => {};
+    document.addEventListener("touchstart", handleTouch, { passive: true });
+    return () => {
+      document.removeEventListener("touchstart", handleTouch);
+    };
+  }, []);
 
   const categoryNavItems = useMemo(() => {
     return categories.map((category) => ({
@@ -453,10 +497,27 @@ export default function StreamDashboard({
     fetchDetails();
   }, [selectedMovieId, selectedMediaType]);
 
+  useEffect(() => {
+    if (activeSection === "sports") {
+      setIsSportsLoading(true);
+      fetch("/api/sports")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success) {
+            setSportsChannels(data.channels || []);
+            setSportsSchedule(data.schedule || {});
+          }
+        })
+        .catch((err) => console.error("Failed to load sports data:", err))
+        .finally(() => setIsSportsLoading(false));
+    }
+  }, [activeSection]);
+
   const embedUrl = useMemo(
     () => {
       if (selectedSportsChannel) {
-        return selectedSportsChannel.embedUrl;
+        // Build the sports embed URL dynamically based on the selected server source and channel id
+        return `https://dlhd.st/${selectedSportsSource}/stream-${selectedSportsChannel.id}.php`;
       }
       return buildEmbedUrl(
         selectedMediaType,
@@ -466,7 +527,7 @@ export default function StreamDashboard({
         selectedSource,
       );
     },
-    [selectedMediaType, selectedMovieId, season, episode, selectedSource, selectedSportsChannel],
+    [selectedMediaType, selectedMovieId, season, episode, selectedSource, selectedSportsChannel, selectedSportsSource],
   );
 
   const heroMovie = useMemo(() => {
@@ -556,6 +617,25 @@ export default function StreamDashboard({
     setSelectedSportsChannel(channel);
     setIsPlayerOpen(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function enterFullscreen() {
+    const iframe = document.getElementById("player-iframe");
+    if (iframe) {
+      try {
+        if (iframe.requestFullscreen) {
+          iframe.requestFullscreen();
+        } else if ((iframe as any).webkitRequestFullscreen) {
+          (iframe as any).webkitRequestFullscreen();
+        } else if ((iframe as any).mozRequestFullScreen) {
+          (iframe as any).mozRequestFullScreen();
+        } else if ((iframe as any).msRequestFullscreen) {
+          (iframe as any).msRequestFullscreen();
+        }
+      } catch (e) {
+        console.error("Fullscreen request failed:", e);
+      }
+    }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -1022,14 +1102,17 @@ export default function StreamDashboard({
             </div>
           )}
         {isPlayerOpen ? (
-          <div className="absolute inset-0 z-40 flex flex-col bg-[#141414] pt-16 md:pt-20">
-            <div className="relative flex-grow">
+          <div className="fixed inset-0 h-screen w-screen z-40 flex flex-col bg-[#141414] pt-16 md:pt-20">
+            <div className="relative flex-grow overflow-auto" style={{ WebkitOverflowScrolling: "touch" }}>
               <iframe
+                id="player-iframe"
                 src={embedUrl}
-                className="h-full w-full border-0"
+                className="absolute inset-0 h-full w-full border-0"
+                scrolling="no"
                 allowFullScreen
                 allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
                 referrerPolicy="origin"
+                style={{ pointerEvents: "auto" }}
               />
               <button
                 onClick={closePlayer}
@@ -1041,6 +1124,42 @@ export default function StreamDashboard({
             </div>
 
             <div className="flex flex-wrap items-center gap-4 border-t border-white/10 bg-[#141414] px-4 py-4 md:px-12">
+              {selectedSportsChannel && (
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">
+                      Stream Server
+                    </label>
+                    <select
+                      value={selectedSportsSource}
+                      onChange={(e) => setSelectedSportsSource(e.target.value)}
+                      className="bg-zinc-800 text-white text-sm px-3 py-1.5 rounded border border-white/10 outline-none focus:border-red-600 transition-colors cursor-pointer"
+                    >
+                      <option value="watch">Server 1 (watch - Mobile OK)</option>
+                      <option value="cast">Server 2 (cast - Mobile OK)</option>
+                      <option value="stream">Server 3 (stream)</option>
+                      <option value="player">Server 4 (player)</option>
+                      <option value="plus">Server 5 (plus)</option>
+                      <option value="casting">Server 6 (casting)</option>
+                    </select>
+                  </div>
+                  <button
+                    onClick={enterFullscreen}
+                    className="inline-flex h-[38px] items-center gap-1.5 rounded bg-zinc-800 border border-white/10 px-4 text-xs font-bold text-white transition-all hover:bg-zinc-700 hover:scale-[1.03] active:scale-95 shadow-md"
+                  >
+                    Fullscreen ⛶
+                  </button>
+                  <a
+                    href={embedUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-[38px] items-center gap-1.5 rounded bg-red-600 px-4 text-xs font-bold text-white transition-all hover:bg-red-700 hover:scale-[1.03] active:scale-95 shadow-md shadow-red-950/20"
+                  >
+                    Open in New Tab ↗
+                  </a>
+                </div>
+              )}
+
               {!selectedSportsChannel && (
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">
@@ -1298,73 +1417,150 @@ export default function StreamDashboard({
 
             {activeSection === "sports" && (
               <div className="space-y-6 px-4 md:px-12">
-                <div className="flex flex-col gap-2 border-b border-white/10 pb-4">
-                  <h2 className="text-2xl font-black text-white sm:text-3xl flex items-center gap-2">
-                    Live Sports Streams
-                    <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-black uppercase tracking-wider text-white animate-pulse">
-                      Live Now
-                    </span>
-                  </h2>
-                  <p className="text-sm text-gray-400">
-                    Watch live coverage of major sporting events, including Cricket, Football, Motorsport, and more.
-                  </p>
-                </div>
+                <div className="flex flex-col gap-4 border-b border-white/10 pb-4 md:flex-row md:items-end md:justify-between">
+                  <div className="space-y-2">
+                    <h2 className="text-2xl font-black text-white sm:text-3xl flex items-center gap-2">
+                      Live Sports & TV
+                      <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-black uppercase tracking-wider text-white animate-pulse">
+                        Live
+                      </span>
+                    </h2>
+                    <p className="text-sm text-gray-400">
+                      Watch live events, schedules, and TV channels dynamically sourced from DaddyLive.
+                    </p>
+                  </div>
 
-                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                  {LIVE_SPORTS_CHANNELS.map((channel) => (
-                    <div
-                      key={channel.id}
-                      onClick={() => playSports(channel)}
-                      className="group cursor-pointer overflow-hidden rounded-xl border border-white/5 bg-[#11131c] shadow-2xl transition-all duration-300 hover:scale-[1.03] hover:border-red-500/50 hover:shadow-red-950/20"
+                  {/* Tabs: Channels vs Schedule */}
+                  <div className="flex rounded-lg bg-white/5 p-1 border border-white/5 self-start">
+                    <button
+                      onClick={() => setSportsTab("channels")}
+                      className={`rounded-md px-4 py-1.5 text-xs font-bold transition-all ${
+                        sportsTab === "channels"
+                          ? "bg-red-600 text-white shadow"
+                          : "text-gray-400 hover:text-white"
+                      }`}
                     >
-                      <div className="relative aspect-video w-full overflow-hidden">
-                        <Image
-                          src={channel.backdropPath}
-                          alt={channel.title}
-                          fill
-                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                          className="object-cover transition-transform duration-500 group-hover:scale-105"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
-
-                        {/* Live Badge */}
-                        <div className="absolute left-3 top-3 flex items-center gap-1.5 rounded bg-red-600 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-white shadow-md">
-                          <span className="h-1.5 w-1.5 rounded-full bg-white animate-ping" />
-                          {channel.status}
-                        </div>
-
-                        {/* Category badge */}
-                        <div className="absolute right-3 top-3 rounded bg-black/60 border border-white/10 px-2 py-0.5 text-[10px] font-bold text-gray-200">
-                          {channel.category}
-                        </div>
-
-                        {/* Play overlay */}
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
-                          <div className="rounded-full bg-red-600 p-3 shadow-lg shadow-red-600/30 transform scale-90 group-hover:scale-100 transition-transform duration-300">
-                            <Play className="h-6 w-6 text-white fill-white ml-0.5" />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="p-4 space-y-2">
-                        <h3 className="font-bold text-white text-base line-clamp-1 group-hover:text-red-400 transition-colors">
-                          {channel.title}
-                        </h3>
-
-                        {/* Live Score/Status */}
-                        <div className="rounded-lg bg-black/40 px-3 py-2 border border-white/5 flex flex-col gap-1">
-                          <span className="text-xs font-semibold text-green-400 flex items-center gap-1">
-                            <span className="h-1 w-1 rounded-full bg-green-400 animate-pulse" />
-                            {channel.score}
-                          </span>
-                          <span className="text-[11px] text-gray-400">
-                            {channel.odds}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                      TV Channels
+                    </button>
+                    <button
+                      onClick={() => setSportsTab("schedule")}
+                      className={`rounded-md px-4 py-1.5 text-xs font-bold transition-all ${
+                        sportsTab === "schedule"
+                          ? "bg-red-600 text-white shadow"
+                          : "text-gray-400 hover:text-white"
+                      }`}
+                    >
+                      Live Schedule
+                    </button>
+                  </div>
                 </div>
+
+                {isSportsLoading ? (
+                  <div className="flex h-64 items-center justify-center">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-red-600 border-t-transparent" />
+                  </div>
+                ) : sportsTab === "channels" ? (
+                  /* Channels Grid */
+                  sportsChannels.length === 0 ? (
+                    <div className="text-center py-12 text-gray-400">No channels available at the moment.</div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+                      {sportsChannels.map((channel) => (
+                        <div
+                          key={channel.channel_id}
+                          onClick={() =>
+                            playSports({
+                              id: channel.channel_id,
+                              title: channel.channel_name,
+                              embedUrl: `https://dlhd.st/stream/stream-${channel.channel_id}.php`,
+                            })
+                          }
+                          className="group cursor-pointer overflow-hidden rounded-xl border border-white/5 bg-[#11131c] p-3 text-center shadow-xl transition-all duration-300 hover:scale-[1.05] hover:border-red-500/50"
+                        >
+                          <div className="relative mx-auto mb-3 aspect-square w-16 overflow-hidden rounded-lg bg-black/40 p-2 border border-white/10 flex items-center justify-center">
+                            <img
+                              src={getLogoUrl(channel.logo_url)}
+                              alt={channel.channel_name}
+                              className="max-h-full max-w-full object-contain"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src =
+                                  "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?q=80&w=800";
+                              }}
+                            />
+                          </div>
+                          <h3 className="text-xs font-bold text-gray-200 line-clamp-2 group-hover:text-red-400 transition-colors">
+                            {channel.channel_name}
+                          </h3>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                ) : (
+                  /* Schedule Lists */
+                  Object.keys(sportsSchedule).length === 0 ? (
+                    <div className="text-center py-12 text-gray-400">No live schedule events available today.</div>
+                  ) : (
+                    <div className="space-y-8">
+                      {Object.keys(sportsSchedule).map((dayKey) => (
+                        <div key={dayKey} className="space-y-4">
+                          <h3 className="text-lg font-bold text-red-500 border-b border-red-500/20 pb-1">{dayKey}</h3>
+                          
+                          {Object.keys(sportsSchedule[dayKey]).map((categoryKey) => (
+                            <div key={categoryKey} className="space-y-3 pl-2">
+                              <h4 className="text-sm font-semibold text-gray-300 bg-white/5 px-3 py-1 rounded w-fit">
+                                {categoryKey}
+                              </h4>
+                              
+                              <div className="space-y-2">
+                                {sportsSchedule[dayKey][categoryKey].map((event: any, idx: number) => (
+                                  <div
+                                    key={`${event.event}-${idx}`}
+                                    className="flex flex-col gap-4 rounded-xl border border-white/5 bg-[#11131c]/60 p-4 transition-colors hover:border-white/10 sm:flex-row sm:items-center sm:justify-between"
+                                  >
+                                    <div className="space-y-1">
+                                      <span className="inline-block rounded bg-red-600/20 text-red-400 text-[10px] font-bold px-2 py-0.5">
+                                        {event.time} GMT
+                                      </span>
+                                      <h5 className="font-bold text-white text-sm sm:text-base">{event.event}</h5>
+                                    </div>
+                                    
+                                    {/* Event Channels Badges */}
+                                    <div className="flex flex-wrap gap-2">
+                                      {event.channels?.map((chan: any) => (
+                                        <button
+                                          key={chan.channel_id}
+                                          onClick={() =>
+                                            playSports({
+                                              id: chan.channel_id,
+                                              title: `${event.event} (${chan.channel_name})`,
+                                              embedUrl: `https://dlhd.st/stream/stream-${chan.channel_id}.php`,
+                                            })
+                                          }
+                                          className="flex items-center gap-1.5 rounded-lg bg-white/5 border border-white/10 px-3 py-1.5 text-xs text-gray-300 transition-all hover:bg-red-600 hover:text-white hover:border-red-600"
+                                        >
+                                          <img
+                                            src={getLogoUrl(chan.logo_url)}
+                                            alt={chan.channel_name}
+                                            className="h-4 w-4 object-contain rounded-sm"
+                                            onError={(e) => {
+                                              (e.target as HTMLImageElement).src =
+                                                "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?q=80&w=800";
+                                            }}
+                                          />
+                                          {chan.channel_name}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                )}
               </div>
             )}
 

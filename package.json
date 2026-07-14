@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "build:apk": "powershell -ExecutionPolicy Bypass -File ./apk/build_apk.ps1"
   },
   "dependencies": {
     "lucide-react": "^1.11.0",

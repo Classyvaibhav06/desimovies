@@ -44,7 +44,7 @@ const nextConfig: NextConfig = {
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: blob: https://image.tmdb.org https://assets.fanart.tv https://m.media-amazon.com https://images.unsplash.com https://imgs.search.brave.com",
               "media-src 'self' blob: https:",
-              "frame-src https://vidlink.pro https://embed.su https://www.vidking.net https://vidsrc.me https://vidsrc.to https://vidsrc.xyz https://vidsrc-embed.ru https://vidsrc-embed.su https://vidsrcme.su https://vsrc.su https://dlhd.st https://www.youtube.com",
+              "frame-src https://vidlink.pro https://embed.su https://www.vidking.net https://vidsrc.me https://vidsrc.to https://vidsrc.xyz https://vidsrc-embed.ru https://vidsrc-embed.su https://vidsrcme.su https://vsrc.su https://dlhd.st https://www.youtube.com https://peachify.pro",
               "connect-src 'self' https://api.themoviedb.org https:",
             ].join("; "),
           },
