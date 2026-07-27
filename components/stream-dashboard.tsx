@@ -3,7 +3,7 @@
 
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import type {
   CategoryWithMovies,
   SearchResult,
@@ -20,6 +20,7 @@ import {
   ChevronLeft,
   Volume2,
   VolumeX,
+  Loader2,
 } from "lucide-react";
 
 type StreamDashboardProps = {
@@ -135,6 +136,16 @@ function backdropUrl(path: string | null): string | null {
 
 const LIVE_SPORTS_CHANNELS = [
   {
+    id: "sony-ten-1",
+    title: "FIFA 2026 - Live Stream",
+    category: "Sony Sports Network",
+    status: "LIVE",
+    score: "Live Sports Broadcast",
+    odds: "FIFA 2026  Live HD",
+    backdropPath: "https://imgs.search.brave.com/hooCbBTnMa_WTRo1DBU9tdIQu05HX8yXN4j-Ee_hhjI/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly9tZWRp/YS5nZXR0eWltYWdl/cy5jb20vaWQvMjI4/MDU3NzU0OC9waG90/by9rYW5zYXMtY2l0/eS1taXNzb3VyaS1h/LWdlbmVyYWwtdmll/dy1vZi1maWZhLXdv/cmxkLWN1cC0yMDI2/LXNpZ25hZ2UtYXQt/a2Fuc2FzLWNpdHkt/c3RhZGl1bS1vbi5q/cGc_cz02MTJ4NjEy/Jnc9MCZrPTIwJmM9/dVJ4NUFOeHdxSzhx/QW1lR1RXaUJqMUhS/M1IzSF9Ld1RrMllP/RHl3RW1oUT0",
+    embedUrl: "https://embedindia.st/embed/wc/2026-07-15/eng-arg/fox-en",
+  },
+  {
     id: "sony-ten-3",
     title: "Sony Ten 3 HD - Live Stream",
     category: "Sony Sports Network",
@@ -143,16 +154,6 @@ const LIVE_SPORTS_CHANNELS = [
     odds: "Sony Sports Ten 3 Live SD/HD Channel",
     backdropPath: "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?q=80&w=800",
     embedUrl: "https://dlhd.st/stream/stream-49.php",
-  },
-  {
-    id: "sony-ten-1",
-    title: "FIFA 2026 - Live Stream",
-    category: "Sony Sports Network",
-    status: "LIVE",
-    score: "Live Sports Broadcast",
-    odds: "FIFA 2026  Live HD",
-    backdropPath: "https://imgs.search.brave.com/hooCbBTnMa_WTRo1DBU9tdIQu05HX8yXN4j-Ee_hhjI/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly9tZWRp/YS5nZXR0eWltYWdl/cy5jb20vaWQvMjI4/MDU3NzU0OC9waG90/by9rYW5zYXMtY2l0/eS1taXNzb3VyaS1h/LWdlbmVyYWwtdmll/dy1vZi1maWZhLXdv/cmxkLWN1cC0yMDI2/LXNpZ25hZ2UtYXQt/a2Fuc2FzLWNpdHkt/c3RhZGl1bS1vbi5q/cGc_cz02MTJ4NjEy/Jnc9MCZrPTIwJmM9/dVJ4NUFOeHdxSzhx/QW1lR1RXaUJqMUhS/M1IzSF9Ld1RrMllP/RHl3RW1oUT0",
-    embedUrl: "https://dlhd.st/watch/stream-350.php",
   },
   {
     id: "sports-1",
@@ -232,6 +233,7 @@ export default function StreamDashboard({
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNavbarBlack, setIsNavbarBlack] = useState(false);
   const [isPlayerOpen, setIsPlayerOpen] = useState(Boolean(initialPlayback));
@@ -259,15 +261,18 @@ export default function StreamDashboard({
 
   const sportsHero = useMemo(() => {
     if (sportsChannels.length > 0) {
+      const fifaChan = sportsChannels.find(c => c.channel_name?.toLowerCase().includes("fifa"));
+      const primaryChan = fifaChan || sportsChannels[0];
+      const isFifa = primaryChan.channel_name?.toLowerCase().includes("fifa");
       return {
-        id: sportsChannels[0].channel_id,
-        title: sportsChannels[0].channel_name,
+        id: primaryChan.channel_id,
+        title: primaryChan.channel_name,
         category: "Live TV Channel",
         status: "LIVE",
         score: "Broadcasting Now",
         odds: "Select a channel below to watch live streaming coverage",
-        backdropPath: getLogoUrl(sportsChannels[0].logo_url),
-        embedUrl: `https://dlhd.st/stream/stream-${sportsChannels[0].channel_id}.php`
+        backdropPath: getLogoUrl(primaryChan.logo_url),
+        embedUrl: isFifa ? "https://embedindia.st/embed/wc/2026-07-15/eng-arg/fox-en" : `https://dlhd.st/stream/stream-${primaryChan.channel_id}.php`
       };
     }
     return LIVE_SPORTS_CHANNELS[0];
@@ -290,6 +295,10 @@ export default function StreamDashboard({
   const [selectedSource, setSelectedSource] = useState<string>(
     initialPlayback?.sourceId ?? "vidlink",
   );
+
+  const searchClientCacheRef = useRef<Map<string, SearchResult[]>>(new Map());
+  const searchAbortControllerRef = useRef<AbortController | null>(null);
+  const searchDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const handleTouch = () => {};
@@ -516,8 +525,18 @@ export default function StreamDashboard({
   const embedUrl = useMemo(
     () => {
       if (selectedSportsChannel) {
+        // If it's a FIFA stream or has FIFA in the name, use the custom embed India source
+        const name = (selectedSportsChannel.title || selectedSportsChannel.channel_name || "").toLowerCase();
+        if (name.includes("fifa") || selectedSportsChannel.id === "sony-ten-1" || selectedSportsChannel.channel_id === "54" || selectedSportsChannel.channel_id === "768" || selectedSportsChannel.channel_id === "350") {
+          return "https://embedindia.st/embed/wc/2026-07-15/eng-arg/fox-en";
+        }
+        // If the channel has a custom non-dlhd embedUrl (like youtube), use it directly
+        if (selectedSportsChannel.embedUrl && !selectedSportsChannel.embedUrl.includes("dlhd.st")) {
+          return selectedSportsChannel.embedUrl;
+        }
         // Build the sports embed URL dynamically based on the selected server source and channel id
-        return `https://dlhd.st/${selectedSportsSource}/stream-${selectedSportsChannel.id}.php`;
+        const channelId = selectedSportsChannel.id || selectedSportsChannel.channel_id;
+        return `https://dlhd.st/${selectedSportsSource}/stream-${channelId}.php`;
       }
       return buildEmbedUrl(
         selectedMediaType,
@@ -567,44 +586,67 @@ export default function StreamDashboard({
     return list[0];
   }, [categories, activeSection, myList, selectedCategoryKey]);
 
-  async function handleSearch(q: string) {
+  function handleSearch(q: string) {
     setSearchQuery(q);
-    const isNumeric = /^\d+$/.test(q);
-    if (!isNumeric && q.length < 2) {
+    const trimmed = q.trim();
+    const isNumeric = /^\d+$/.test(trimmed);
+
+    if (!isNumeric && trimmed.length < 2) {
+      if (searchDebounceTimerRef.current) {
+        clearTimeout(searchDebounceTimerRef.current);
+      }
+      if (searchAbortControllerRef.current) {
+        searchAbortControllerRef.current.abort();
+      }
       setSearchResults([]);
+      setIsSearchLoading(false);
       return;
     }
-    try {
-      // Search for both movies and TV to ensure everything is found
-      const [moviesRes, tvRes] = await Promise.all([
-        fetch(
-          `/api/search?q=${encodeURIComponent(q)}&type=movie&lang=${language}`,
-        ),
-        fetch(
-          `/api/search?q=${encodeURIComponent(q)}&type=tv&lang=${language}`,
-        ),
-      ]);
 
-      const [moviesData, tvData] = await Promise.all([
-        moviesRes.json(),
-        tvRes.json(),
-      ]);
-
-      const combined = [
-        ...(moviesData.results || []),
-        ...(tvData.results || []),
-      ];
-      // Basic deduplication and sorting by rating/relevance
-      const uniqueResults = combined.filter(
-        (v, i, a) =>
-          a.findIndex((t) => t.id === v.id && t.mediaType === v.mediaType) ===
-          i,
-      );
-
-      setSearchResults(uniqueResults.slice(0, 20));
-    } catch (e) {
-      console.error(e);
+    const cacheKey = `${trimmed.toLowerCase()}:${language}`;
+    const cached = searchClientCacheRef.current.get(cacheKey);
+    if (cached) {
+      setSearchResults(cached.slice(0, 20));
+      setIsSearchLoading(false);
+      return;
     }
+
+    setIsSearchLoading(true);
+
+    if (searchDebounceTimerRef.current) {
+      clearTimeout(searchDebounceTimerRef.current);
+    }
+
+    searchDebounceTimerRef.current = setTimeout(async () => {
+      if (searchAbortControllerRef.current) {
+        searchAbortControllerRef.current.abort();
+      }
+      const controller = new AbortController();
+      searchAbortControllerRef.current = controller;
+
+      try {
+        const response = await fetch(
+          `/api/search?q=${encodeURIComponent(trimmed)}&type=all&lang=${language}`,
+          { signal: controller.signal }
+        );
+        if (!response.ok) {
+          if (!controller.signal.aborted) setIsSearchLoading(false);
+          return;
+        }
+        const data = await response.json();
+
+        if (!controller.signal.aborted && data.results) {
+          searchClientCacheRef.current.set(cacheKey, data.results);
+          setSearchResults(data.results.slice(0, 20));
+          setIsSearchLoading(false);
+        }
+      } catch (err: any) {
+        if (err?.name !== "AbortError") {
+          console.error("Search fetch failed:", err);
+          setIsSearchLoading(false);
+        }
+      }
+    }, 300);
   }
 
   function closePlayer() {
@@ -1766,9 +1808,16 @@ export default function StreamDashboard({
               </span>
             </h2>
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8">
-              {searchResults.length > 0 ? (
-                searchResults.map((movie) => (
+            {isSearchLoading ? (
+              <div className="col-span-full py-20 flex flex-col items-center justify-center text-center">
+                <Loader2 className="h-10 w-10 animate-spin text-[#E50914] mb-4" />
+                <p className="text-lg font-medium text-gray-400">
+                  Searching movies &amp; TV shows...
+                </p>
+              </div>
+            ) : searchResults.length > 0 ? (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8">
+                {searchResults.map((movie) => (
                   <div
                     key={movie.id}
                     className="group relative aspect-[2/3] cursor-pointer overflow-hidden rounded-md bg-zinc-800 transition hover:scale-110 hover:z-10"
@@ -1808,20 +1857,20 @@ export default function StreamDashboard({
                       </p>
                     </div>
                   </div>
-                ))
-              ) : (
-                <div className="col-span-full py-20 text-center">
-                  <SearchIcon className="h-16 w-16 text-zinc-700 mx-auto mb-4" />
-                  <p className="text-xl text-gray-500 font-medium">
-                    No results found for &quot;{searchQuery}&quot;
-                  </p>
-                  <p className="text-sm text-gray-600 mt-2">
-                    Try checking your spelling or searching for a different
-                    title.
-                  </p>
-                </div>
-              )}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="col-span-full py-20 text-center">
+                <SearchIcon className="h-16 w-16 text-zinc-700 mx-auto mb-4" />
+                <p className="text-xl text-gray-500 font-medium">
+                  No results found for &quot;{searchQuery}&quot;
+                </p>
+                <p className="text-sm text-gray-600 mt-2">
+                  Try checking your spelling or searching for a different
+                  title.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}

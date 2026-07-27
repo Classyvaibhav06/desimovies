@@ -1,4 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import {
+  buildSearchVariants,
+  normalizeSearchText,
+  scoreSearchResult,
+} from "./search-utils";
 export type MovieSummary = {
   id: number;
   title: string;
@@ -74,14 +79,14 @@ const tmdbTvdbIdCache = new Map<number, number | null>();
 
 const CATEGORY_CONFIGS: Array<{ key: string; label: string; endpoint: string; mediaType: "movie" | "tv" }> = [
   { key: "trending", label: "Trending Now", endpoint: "/trending/all/day", mediaType: "movie" },
-  { key: "popular-movies", label: "Popular Movies", endpoint: "/movie/popular", mediaType: "movie" },
-  { key: "top-10-movies", label: "Top 10 Movies Today", endpoint: "/movie/popular", mediaType: "movie" },
-  { key: "top-rated", label: "Top Rated Movies", endpoint: "/movie/top_rated", mediaType: "movie" },
-  { key: "popular-tv", label: "Popular TV Shows", endpoint: "/tv/popular", mediaType: "tv" },
-  { key: "top-10-tv", label: "Top 10 TV Shows Today", endpoint: "/tv/popular", mediaType: "tv" },
-  { key: "new-movies", label: "New on desimaovies", endpoint: "/movie/now_playing", mediaType: "movie" },
-  { key: "new-tv", label: "New TV Series", endpoint: "/tv/on_the_air", mediaType: "tv" },
-  { key: "upcoming", label: "Coming Soon", endpoint: "/movie/upcoming", mediaType: "movie" },
+  { key: "popular-movies", label: "Popular Movies", endpoint: "/movie/popular?page=1", mediaType: "movie" },
+  { key: "top-10-movies", label: "Top 10 Movies Today", endpoint: "/trending/movie/week", mediaType: "movie" },
+  { key: "top-rated", label: "Top Rated Movies", endpoint: "/movie/top_rated?page=1", mediaType: "movie" },
+  { key: "popular-tv", label: "Popular TV Shows", endpoint: "/tv/popular?page=1", mediaType: "tv" },
+  { key: "top-10-tv", label: "Top 10 TV Shows Today", endpoint: "/trending/tv/week", mediaType: "tv" },
+  { key: "new-movies", label: "New on desimaovies", endpoint: "/movie/now_playing?page=1", mediaType: "movie" },
+  { key: "new-tv", label: "New TV Series", endpoint: "/tv/on_the_air?page=1", mediaType: "tv" },
+  { key: "upcoming", label: "Coming Soon", endpoint: "/movie/upcoming?page=2", mediaType: "movie" },
   {
     key: "desi-picks",
     label: "Desi Picks",
@@ -105,8 +110,8 @@ const FALLBACK_MOVIES_BY_CATEGORY: Record<
     { id: 157336, title: "Interstellar", posterPath: "https://m.media-amazon.com/images/M/MV5BZjdkOTU3MDktN2IxOS00OGEyLWFmMjktY2FiMmZkNWIyODZiXkEyXkFqcGdeQXVyMTMxODk2OTU@._V1_.jpg", releaseDate: "2014-11-05", rating: 8.7 }
   ],
   "top-10-movies": [
-    { id: 27205, title: "Inception", posterPath: "https://m.media-amazon.com/images/M/MV5BMjAxMzY3NjcxNF5BMl5BanBnXkFtZTcwNTI5OTM0Mw@@._V1_.jpg", releaseDate: "2010-07-15", rating: 8.8 },
-    { id: 299536, title: "Infinity War", posterPath: "https://m.media-amazon.com/images/M/MV5BMjMxNjY2MDU1OV5BMl5BanBnXkFtZTgwNzY1MTUwNTM@._V1_.jpg", releaseDate: "2018-04-25", rating: 8.4 }
+    { id: 550, title: "Fight Club", posterPath: null, releaseDate: "1999-10-15", rating: 8.4 },
+    { id: 680, title: "Pulp Fiction", posterPath: null, releaseDate: "1994-09-10", rating: 8.9 }
   ],
   "top-rated": [
     { id: 238, title: "The Godfather", posterPath: null, releaseDate: "1972-03-14", rating: 9.2 },
@@ -119,8 +124,20 @@ const FALLBACK_MOVIES_BY_CATEGORY: Record<
     { id: 76054, title: "Dark", posterPath: "https://m.media-amazon.com/images/M/MV5BMTEyNDM5NjgzOTdeQTJeQWpwZ15BbWU4MDgyMzA2NjEx._V1_.jpg", releaseDate: "2017-06-27", rating: 8.4 }
   ],
   "top-10-tv": [
-    { id: 76479, title: "The Boys", posterPath: "https://m.media-amazon.com/images/M/MV5BN2RjZGFhMDEtMzMwZi00YzczLThmNWQtY2E2MjE1OTMxNDI1XkEyXkFqcGdeQXVyMTkxNjUyNQ@@._V1_.jpg", releaseDate: "2019-07-25", rating: 8.5 },
+    { id: 1399, title: "Game of Thrones", posterPath: null, releaseDate: "2011-04-17", rating: 9.3 },
     { id: 1396, title: "Breaking Bad", posterPath: "https://m.media-amazon.com/images/M/MV5BMjhiMzgxZTctNDc1Ni00OTIxLTgwMTUtMTYzOTlhMzExMzkwXkEyXkFqcGdeQXVyNzkwMjQ5NzM@._V1_.jpg", releaseDate: "2008-01-20", rating: 9.5 }
+  ],
+  "new-movies": [
+    { id: 822119, title: "Captain America: Brave New World", posterPath: null, releaseDate: "2025-02-14", rating: 7.5 },
+    { id: 939243, title: "Sonic the Hedgehog 3", posterPath: null, releaseDate: "2024-12-20", rating: 7.7 }
+  ],
+  "new-tv": [
+    { id: 94605, title: "Arcane", posterPath: null, releaseDate: "2021-11-06", rating: 9.0 },
+    { id: 114472, title: "The Last of Us", posterPath: null, releaseDate: "2023-01-15", rating: 8.8 }
+  ],
+  "upcoming": [
+    { id: 533535, title: "Deadpool & Wolverine", posterPath: null, releaseDate: "2024-07-26", rating: 7.8 },
+    { id: 693134, title: "Dune: Part Two", posterPath: null, releaseDate: "2024-03-01", rating: 8.5 }
   ],
   "desi-picks": [
     { id: 127538, title: "Kabir Singh", posterPath: "https://m.media-amazon.com/images/M/MV5BMGRjYjQxM2ItYTM2MS00ZmY0LThmZmUtOTI2NTRhYjEwYWZjXkEyXkFqcGdeQXVyNDAzNDk0MTQ@._V1_.jpg", releaseDate: "2019-06-21", rating: 7.1 },
@@ -310,19 +327,49 @@ async function fetchTmdb(endpoint: string, mediaType: "movie" | "tv"): Promise<M
 }
 
 export async function getCategoryMovies(): Promise<CategoryWithMovies[]> {
-  const results = await Promise.all(CATEGORY_CONFIGS.map(async (category) => {
+  const seenMovieIds = new Set<number>();
+  const seenTvIds = new Set<number>();
+
+  const rawCategories = await Promise.all(CATEGORY_CONFIGS.map(async (category) => {
     try {
       const movies = await fetchTmdb(category.endpoint, category.mediaType);
-      const finalMovies = category.key.includes("top-10") ? movies.slice(0, 10) : movies;
       return {
-        key: category.key, label: category.label, mediaType: category.mediaType,
-        movies: finalMovies.length > 0 ? finalMovies : getFallbackMovies(category.key, category.mediaType).slice(0, 10)
+        key: category.key,
+        label: category.label,
+        mediaType: category.mediaType,
+        movies: movies.length > 0 ? movies : getFallbackMovies(category.key, category.mediaType)
       };
     } catch {
-      return { key: category.key, label: category.label, mediaType: category.mediaType, movies: getFallbackMovies(category.key, category.mediaType) };
+      return {
+        key: category.key,
+        label: category.label,
+        mediaType: category.mediaType,
+        movies: getFallbackMovies(category.key, category.mediaType)
+      };
     }
   }));
-  return results;
+
+  // Filter out duplicates across categories so every row showcases unique recommendations
+  return rawCategories.map((category) => {
+    const seenSet = category.mediaType === "tv" ? seenTvIds : seenMovieIds;
+    let filteredMovies = category.movies.filter((m) => !seenSet.has(m.id));
+
+    // Fallback to original items if deduplication leaves fewer than 5 items
+    if (filteredMovies.length < 5) {
+      filteredMovies = category.movies;
+    }
+
+    const limit = category.key.includes("top-10") ? 10 : 16;
+    const finalMovies = filteredMovies.slice(0, limit);
+    finalMovies.forEach((m) => seenSet.add(m.id));
+
+    return {
+      key: category.key,
+      label: category.label,
+      mediaType: category.mediaType,
+      movies: finalMovies
+    };
+  });
 }
 
 type TmdbSearchResponse = {
@@ -364,55 +411,6 @@ export function getFallbackSearchResults(query: string, mediaType: "movie" | "tv
     .sort((left, right) => right.score - left.score)
     .map(({ item }) => item)
     .slice(0, SEARCH_RESULT_LIMIT);
-}
-
-function normalizeSearchText(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
-}
-
-function toSearchTokens(value: string): string[] {
-  return normalizeSearchText(value).split(" ").filter(Boolean);
-}
-
-function buildSearchVariants(query: string): string[] {
-  const normalized = normalizeSearchText(query);
-  if (!normalized) return [];
-  const tokens = normalized.split(" ").filter(Boolean);
-  const variants = new Set<string>();
-  variants.add(normalized);
-  if (tokens.length >= 2) { variants.add(tokens.slice(0, -1).join(" ")); variants.add(tokens.slice(1).join(" ")); }
-  return Array.from(variants).filter(Boolean);
-}
-
-function levenshteinDistance(a: string, b: string): number {
-  if (a === b) return 0;
-  if (!a.length) return b.length;
-  if (!b.length) return a.length;
-  let previous = Array.from({ length: b.length + 1 }, (_, index) => index);
-  for (let i = 1; i <= a.length; i += 1) {
-    const current = [i];
-    for (let j = 1; j <= b.length; j += 1) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      current[j] = Math.min(current[j - 1] + 1, previous[j] + 1, previous[j - 1] + cost);
-    }
-    previous = current;
-  }
-  return previous[b.length] ?? 0;
-}
-
-function scoreSearchResult(result: SearchResult, rawQuery: string): number {
-  const normalizedQuery = normalizeSearchText(rawQuery);
-  const normalizedTitle = normalizeSearchText(result.title);
-  if (!normalizedQuery || !normalizedTitle) return 0;
-  if (normalizedQuery === normalizedTitle) return 2;
-  const queryTokens = toSearchTokens(normalizedQuery);
-  const titleTokens = new Set(toSearchTokens(normalizedTitle));
-  const overlap = queryTokens.filter((token) => titleTokens.has(token)).length;
-  const overlapRatio = queryTokens.length > 0 ? overlap / queryTokens.length : 0;
-  const maxLen = Math.max(normalizedQuery.length, normalizedTitle.length);
-  const distance = levenshteinDistance(normalizedQuery, normalizedTitle);
-  const distanceScore = maxLen > 0 ? 1 - distance / maxLen : 0;
-  return overlapRatio * 0.55 + distanceScore * 0.35;
 }
 
 function rankAndDedupeResults(results: SearchResult[], query: string): SearchResult[] {
