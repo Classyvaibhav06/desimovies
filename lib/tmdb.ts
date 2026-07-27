@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   buildSearchVariants,
-  normalizeSearchText,
   scoreSearchResult,
 } from "./search-utils";
 export type MovieSummary = {

@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import Image from "next/image";
@@ -414,13 +415,7 @@ export default function StreamDashboard({
     setEpisode(initialPlayback.episode ?? 1);
     setSelectedSource(initialPlayback.sourceId ?? "vidlink");
     setIsPlayerOpen(true);
-  }, [
-    initialPlayback?.id,
-    initialPlayback?.mediaType,
-    initialPlayback?.season,
-    initialPlayback?.episode,
-    initialPlayback?.sourceId,
-  ]);
+  }, [initialPlayback]);
 
   useEffect(() => {
     if (!initialDetail) return;
@@ -465,7 +460,7 @@ export default function StreamDashboard({
     return () => {
       isActive = false;
     };
-  }, [initialDetail?.id, initialDetail?.mediaType]);
+  }, [initialDetail]);
 
   useEffect(() => {
     if (!isWatchRoute || !isPlayerOpen) return;
@@ -1520,6 +1515,7 @@ export default function StreamDashboard({
                           className="group cursor-pointer overflow-hidden rounded-xl border border-white/5 bg-[#11131c] p-3 text-center shadow-xl transition-all duration-300 hover:scale-[1.05] hover:border-red-500/50"
                         >
                           <div className="relative mx-auto mb-3 aspect-square w-16 overflow-hidden rounded-lg bg-black/40 p-2 border border-white/10 flex items-center justify-center">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                               src={getLogoUrl(channel.logo_url)}
                               alt={channel.channel_name}
