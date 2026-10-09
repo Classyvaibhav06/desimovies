@@ -96,8 +96,8 @@ function buildEmbedUrl(
 
   // Default to vidsrc_wiki
   return mediaType === "tv"
-    ? `https://vidsrc.wiki/embed/tv/${tmdbId}/${season}/${episode}`
-    : `https://vidsrc.wiki/embed/movie/${tmdbId}`;
+    ? `https://vidsrc.wiki/embed/tv/${tmdbId}/${season}/${episode}/`
+    : `https://vidsrc.wiki/embed/movie/${tmdbId}/`;
 }
 
 function buildWatchPath(
