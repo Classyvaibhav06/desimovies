@@ -48,24 +48,24 @@ type InitialDetail = {
 
 const EMBED_SOURCES = [
   {
-    id: "vidlink",
-    name: "Source 1 (4K)",
-    url: "https://vidlink.pro",
+    id: "vidsrc_wiki",
+    name: "Source 1 (VidSrc Wiki)",
+    url: "https://vidsrc.wiki",
   },
   {
-    id: "peachify",
-    name: "Source 2 (HD)",
-    url: "https://peachify.pro",
+    id: "cinesrc",
+    name: "Source 2 (CineSrc)",
+    url: "https://cinesrc.st",
   },
   {
-    id: "vidking",
-    name: "Source 3 (Fast)",
-    url: "https://www.vidking.net/embed",
+    id: "vidsrc_su",
+    name: "Source 3 (VidSrc SU)",
+    url: "https://vidsrc.su",
   },
   {
-    id: "vidsrc_to",
-    name: "Source 4 (Multi)",
-    url: "https://vidsrc.to/embed",
+    id: "autoembed",
+    name: "Source 4 (AutoEmbed)",
+    url: "https://autoembed.co",
   },
 ];
 
@@ -74,30 +74,30 @@ function buildEmbedUrl(
   tmdbId: number,
   season: number,
   episode: number,
-  sourceId: string = "vidlink",
+  sourceId: string = "vidsrc_wiki",
 ): string {
-  if (sourceId === "peachify") {
+  if (sourceId === "cinesrc") {
     return mediaType === "tv"
-      ? `https://peachify.pro/embed/tv/${tmdbId}/${season}/${episode}?accent=E50914&dub=Hindi`
-      : `https://peachify.pro/embed/movie/${tmdbId}?accent=E50914&dub=Hindi`;
+      ? `https://cinesrc.st/embed/tv/${tmdbId}/${season}/${episode}`
+      : `https://cinesrc.st/embed/movie/${tmdbId}`;
   }
 
-  if (sourceId === "vidsrc_to") {
+  if (sourceId === "vidsrc_su") {
     return mediaType === "tv"
-      ? `https://vidsrc.to/embed/tv/${tmdbId}/${season}/${episode}`
-      : `https://vidsrc.to/embed/movie/${tmdbId}`;
+      ? `https://vidsrc.su/embed/tv/${tmdbId}/${season}/${episode}`
+      : `https://vidsrc.su/embed/movie/${tmdbId}`;
   }
 
-  if (sourceId === "vidking") {
+  if (sourceId === "autoembed") {
     return mediaType === "tv"
-      ? `https://www.vidking.net/embed/tv/${tmdbId}/${season}/${episode}`
-      : `https://www.vidking.net/embed/movie/${tmdbId}`;
+      ? `https://autoembed.co/tv/tmdb/${tmdbId}-${season}-${episode}`
+      : `https://autoembed.co/movie/tmdb/${tmdbId}`;
   }
 
-  // Default to vidlink
+  // Default to vidsrc_wiki
   return mediaType === "tv"
-    ? `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}?autoplay=1`
-    : `https://vidlink.pro/movie/${tmdbId}?autoplay=1`;
+    ? `https://vidsrc.wiki/embed/tv/${tmdbId}/${season}/${episode}`
+    : `https://vidsrc.wiki/embed/movie/${tmdbId}`;
 }
 
 function buildWatchPath(
@@ -112,7 +112,7 @@ function buildWatchPath(
     params.set("season", String(season));
     params.set("episode", String(episode));
   }
-  if (sourceId && sourceId !== "vidlink") {
+  if (sourceId && sourceId !== "vidsrc_wiki") {
     params.set("source", sourceId);
   }
   const query = params.toString();
@@ -294,7 +294,7 @@ export default function StreamDashboard({
   const [detailSeason, setDetailSeason] = useState(1);
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
   const [selectedSource, setSelectedSource] = useState<string>(
-    initialPlayback?.sourceId ?? "vidlink",
+    initialPlayback?.sourceId ?? "vidsrc_wiki",
   );
 
   const searchClientCacheRef = useRef<Map<string, SearchResult[]>>(new Map());
@@ -413,7 +413,7 @@ export default function StreamDashboard({
     setSelectedMovieId(initialPlayback.id);
     setSeason(initialPlayback.season ?? 1);
     setEpisode(initialPlayback.episode ?? 1);
-    setSelectedSource(initialPlayback.sourceId ?? "vidlink");
+    setSelectedSource(initialPlayback.sourceId ?? "vidsrc_wiki");
     setIsPlayerOpen(true);
   }, [initialPlayback]);
 
