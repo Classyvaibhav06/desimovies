@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Bebas_Neue, Space_Grotesk } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const headingFont = Bebas_Neue({
@@ -31,6 +32,7 @@ export default function RootLayout({
     >
       <body className="font-[var(--font-body)]" suppressHydrationWarning>
         {children}
+        <Analytics />
       </body>
     </html>
   );

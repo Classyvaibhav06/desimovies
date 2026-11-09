@@ -10,6 +10,7 @@
     "build:apk": "powershell -ExecutionPolicy Bypass -File ./apk/build_apk.ps1"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "lucide-react": "^1.11.0",
     "next": "^15.3.2",
     "openai": "^4.104.0",
