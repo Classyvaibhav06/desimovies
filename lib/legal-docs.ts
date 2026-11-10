@@ -29,7 +29,7 @@ export const LEGAL_DOCS: Record<string, LegalDoc> = {
       {
         title: "2. Third-Party Content & IP Addresses",
         paragraphs: [
-          "Crucial Notice: DesiMovies does NOT host any media. All video streams, artwork, metadata and download links are fetched directly from external, third-party servers (including our streaming API providers).",
+          "Crucial Notice: DesiMovies does NOT host any media. All video streams, artwork, metadata and download links are fetched directly from external, third-party servers.",
           "Because your browser connects directly to these third-party servers to stream video or download files, those external servers will be able to see your IP address. We do not control these third-party servers, and their data collection practices are governed by their respective privacy policies. If you wish to protect your IP address from third-party hosts, we strongly recommend using a reputable VPN service.",
           "We also request artwork metadata from The Movie Database (TMDB) and Fanart. Those providers receive the same request details as any other third-party host you connect to.",
         ],

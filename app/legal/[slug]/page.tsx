@@ -77,14 +77,6 @@ export default async function LegalPage({
             {item.label}
           </Link>
         ))}
-        <a
-          href="https://www.vidy.st/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="rounded-full border border-white/[0.08] bg-[#181818] px-4 py-2 text-[13px] font-medium text-[#b3b3b3] transition-colors hover:border-white/25 hover:text-white"
-        >
-          Streaming API
-        </a>
       </nav>
     </main>
   );

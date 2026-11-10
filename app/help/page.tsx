@@ -8,7 +8,7 @@ const FAQ_GROUPS = [
     items: [
       {
         q: "What is DesiMovies?",
-        a: "DesiMovies is a free streaming front-end. It pulls catalogue metadata and artwork from TMDB and links to publicly available playback sources through our streaming API — one clean interface for movies, shows and anime.",
+        a: "DesiMovies is a free streaming front-end. It pulls catalogue metadata and artwork from TMDB and links to publicly available playback sources — one clean interface for movies, shows and anime.",
       },
       {
         q: "Do you host the movies and shows?",
@@ -153,14 +153,6 @@ export default function HelpPage() {
             {item.label}
           </Link>
         ))}
-        <a
-          href="https://www.vidy.st/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="rounded-full border border-white/[0.08] bg-[#181818] px-4 py-2 text-[13px] font-medium text-[#b3b3b3] transition-colors hover:border-white/25 hover:text-white"
-        >
-          Streaming API
-        </a>
       </nav>
     </main>
   );

@@ -1938,14 +1938,6 @@ export default function StreamDashboard({
                   {item.label}
                 </Link>
               ))}
-              <a
-                href="https://www.vidy.st/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-[4px] transition-colors duration-200 hover:text-white"
-              >
-                API
-              </a>
             </div>
 
             <div className="mt-8 flex flex-wrap items-center gap-4">
