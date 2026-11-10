@@ -10,6 +10,8 @@ import type {
   SearchResult,
   MovieSummary,
 } from "@/lib/tmdb";
+import { MovieCard, MovieRow } from "@/components/movie-card";
+import { backdropUrl, posterUrl } from "@/lib/media-urls";
 import {
   Play,
   Pause,
@@ -177,18 +179,6 @@ function buildWatchPath(
 
 function buildTitlePath(mediaType: MediaType, tmdbId: number): string {
   return `/title/${mediaType}/${tmdbId}`;
-}
-
-function posterUrl(path: string | null): string | null {
-  if (!path) return null;
-  if (path.startsWith("http")) return path;
-  return `https://image.tmdb.org/t/p/w500${path}`;
-}
-
-function backdropUrl(path: string | null): string | null {
-  if (!path) return null;
-  if (path.startsWith("http")) return path;
-  return `https://image.tmdb.org/t/p/original${path}`;
 }
 
 const LIVE_SPORTS_CHANNELS = [
@@ -945,9 +935,7 @@ export default function StreamDashboard({
   }
 
   return (
-    <div className="relative min-h-screen overflow-x-clip bg-[#090b12]">
-      <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_20%_10%,rgba(255,120,80,0.16),transparent_40%),radial-gradient(circle_at_80%_0%,rgba(249,115,22,0.12),transparent_35%)]" />
-      <div className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(130deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0)_35%)]" />
+    <div className="relative min-h-screen overflow-x-clip bg-[#0f0f0f]">
       {showIntroPopup && (
         <div className="pointer-events-none fixed bottom-4 left-4 z-[200] sm:bottom-6 sm:left-6">
           <div className="rounded-xl border border-white/10 bg-black/60 px-4 py-2.5 text-left shadow-2xl backdrop-blur-xl">
@@ -981,7 +969,7 @@ export default function StreamDashboard({
 
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Desktop pill nav */}
-            <div className="hidden items-center gap-0.5 rounded-full border border-white/[0.08] bg-[#0c0c0c]/85 p-1.5 shadow-[0_18px_55px_rgba(0,0,0,0.75)] backdrop-blur-2xl md:flex">
+            <div className="hidden items-center gap-0.5 rounded-full border border-white/[0.08] bg-[#0f0f0f]/85 p-1.5 shadow-[0_18px_55px_rgba(0,0,0,0.75)] backdrop-blur-2xl md:flex">
               {PRIMARY_NAV.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeSection === item.key;
@@ -992,7 +980,7 @@ export default function StreamDashboard({
                     className={`flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-medium transition-all duration-300 ${
                       isActive
                         ? "bg-white/[0.09] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.09)]"
-                        : "text-zinc-400 hover:bg-white/5 hover:text-white"
+                        : "text-[#b3b3b3] hover:bg-white/5 hover:text-white"
                     }`}
                   >
                     <Icon className="h-[15px] w-[15px]" strokeWidth={2} />
@@ -1009,14 +997,14 @@ export default function StreamDashboard({
                   className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
                     isMoreOpen || MORE_NAV.some((item) => item.key === activeSection)
                       ? "bg-white/[0.09] text-white"
-                      : "text-zinc-400 hover:bg-white/5 hover:text-white"
+                      : "text-[#b3b3b3] hover:bg-white/5 hover:text-white"
                   }`}
                 >
                   <MoreHorizontal className="h-4 w-4" />
                 </button>
                 {isMoreOpen && (
                   <>
-                    <div className="absolute right-0 top-[calc(100%+14px)] w-56 overflow-hidden rounded-2xl border border-white/10 bg-[#0d0d0d]/97 p-1.5 shadow-[0_25px_70px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
+                    <div className="absolute right-0 top-[calc(100%+14px)] w-56 overflow-hidden rounded-2xl border border-white/10 bg-[#0f0f0f]/97 p-1.5 shadow-[0_25px_70px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
                       {MORE_NAV.map((item) => (
                         <button
                           key={item.key}
@@ -1024,7 +1012,7 @@ export default function StreamDashboard({
                           className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[13px] font-medium transition-colors ${
                             activeSection === item.key
                               ? "bg-white/[0.08] text-white"
-                              : "text-zinc-400 hover:bg-white/5 hover:text-white"
+                              : "text-[#b3b3b3] hover:bg-white/5 hover:text-white"
                           }`}
                         >
                           <span className="flex items-center gap-2">
@@ -1057,12 +1045,12 @@ export default function StreamDashboard({
               >
                 {isSearchOpen && (
                   <>
-                    <SearchIcon className="h-4 w-4 shrink-0 text-zinc-400" />
+                    <SearchIcon className="h-4 w-4 shrink-0 text-[#b3b3b3]" />
                     <input
                       autoFocus
                       type="text"
                       placeholder="Search titles, genres..."
-                      className="w-40 bg-transparent px-2 py-2 text-[13px] text-white placeholder:text-zinc-500 focus:outline-none lg:w-52"
+                      className="w-40 bg-transparent px-2 py-2 text-[13px] text-white placeholder:text-[#6f6f6f] focus:outline-none lg:w-52"
                       value={searchQuery}
                       onChange={(e) => handleSearch(e.target.value)}
                     />
@@ -1074,7 +1062,7 @@ export default function StreamDashboard({
                     if (isSearchOpen) setSearchQuery("");
                   }}
                   aria-label="Search"
-                  className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-300 transition-colors hover:bg-white/5 hover:text-white"
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-[#f2f2f2] transition-colors hover:bg-white/5 hover:text-white"
                 >
                   {isSearchOpen ? (
                     <X className="h-4 w-4" />
@@ -1087,7 +1075,7 @@ export default function StreamDashboard({
               {/* Account */}
               <button
                 aria-label="Account"
-                className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-300 transition-colors hover:bg-white/5 hover:text-white"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-[#f2f2f2] transition-colors hover:bg-white/5 hover:text-white"
               >
                 <User className="h-[18px] w-[18px]" />
               </button>
@@ -1127,7 +1115,7 @@ export default function StreamDashboard({
               autoFocus
               type="text"
               placeholder="Search titles, genres..."
-              className="w-full rounded-full border border-white/10 bg-black/60 px-4 py-2.5 text-sm text-white placeholder:text-zinc-500 backdrop-blur-xl focus:outline-none focus:ring-1 focus:ring-white/20"
+              className="w-full rounded-full border border-white/10 bg-black/60 px-4 py-2.5 text-sm text-white placeholder:text-[#6f6f6f] backdrop-blur-xl focus:outline-none focus:ring-1 focus:ring-white/20"
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
             />
@@ -1142,15 +1130,15 @@ export default function StreamDashboard({
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             onClick={() => setIsMobileMenuOpen(false)}
           />
-          <div className="absolute right-3 top-3 w-[min(20rem,calc(100vw-1.5rem))] overflow-hidden rounded-3xl border border-white/10 bg-[#0c0c0c]/97 p-2 shadow-[0_30px_80px_rgba(0,0,0,0.9)] backdrop-blur-2xl">
+          <div className="absolute right-3 top-3 w-[min(20rem,calc(100vw-1.5rem))] overflow-hidden rounded-3xl border border-white/10 bg-[#0f0f0f]/97 p-2 shadow-[0_30px_80px_rgba(0,0,0,0.9)] backdrop-blur-2xl">
             <div className="flex items-center justify-between px-3 py-2">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#6f6f6f]">
                 Browse
               </span>
               <button
                 onClick={() => setIsMobileMenuOpen(false)}
                 aria-label="Close menu"
-                className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 hover:bg-white/5 hover:text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-[#b3b3b3] hover:bg-white/5 hover:text-white"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1166,7 +1154,7 @@ export default function StreamDashboard({
                     className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm font-medium transition-colors ${
                       isActive
                         ? "bg-white/[0.09] text-white"
-                        : "text-zinc-400 hover:bg-white/5 hover:text-white"
+                        : "text-[#b3b3b3] hover:bg-white/5 hover:text-white"
                     }`}
                   >
                     {Icon ? (
@@ -1205,17 +1193,17 @@ export default function StreamDashboard({
       {activeSection === "categories" && categoryNavItems.length > 0 && (
         <div className="fixed left-0 right-0 top-[76px] z-[90] px-4 md:px-10 lg:px-14">
           <div className="no-scrollbar overflow-x-auto pb-1">
-            <div className="flex min-w-max items-center gap-2 rounded-2xl border border-white/10 bg-black/50 p-2 backdrop-blur-md">
+            <div className="flex min-w-max items-center gap-2 rounded-full border border-white/[0.06] bg-[#0f0f0f]/80 p-1.5 backdrop-blur-xl">
               {categoryNavItems.map((item) => {
                 const isActive = selectedCategoryKey === item.key;
                 return (
                   <button
                     key={item.key}
                     onClick={() => setSelectedCategoryKey(item.key)}
-                    className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition-all duration-300 ${
+                    className={`rounded-full px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition-colors duration-300 ${
                       isActive
-                        ? "border-white/30 bg-white text-black"
-                        : "border-white/10 bg-white/5 text-gray-300 hover:border-white/30 hover:text-white"
+                        ? "bg-[#e50914] text-white"
+                        : "text-[#b3b3b3] hover:bg-white/[0.06] hover:text-white"
                     }`}
                   >
                     {item.label}
@@ -1229,7 +1217,7 @@ export default function StreamDashboard({
 
 
       {/* Hero Banner / Player Overlay */}
-      <section className="relative h-[88vh] w-full overflow-hidden pt-12 sm:h-[92vh] lg:h-screen lg:pt-0">
+      <section className="relative h-[70vh] min-h-[420px] w-full overflow-hidden pt-12 md:h-[85vh] md:pt-0">
         {/* Genre filter for Movies/TV */}
         {!isPlayerOpen &&
           (activeSection === "movies" || activeSection === "tv") && (
@@ -1255,7 +1243,7 @@ export default function StreamDashboard({
             </div>
           )}
         {isPlayerOpen ? (
-          <div className="fixed inset-0 h-screen w-screen z-40 flex flex-col bg-[#141414] pt-16 md:pt-20">
+          <div className="fixed inset-0 z-40 flex h-screen w-screen flex-col bg-[#0f0f0f] pt-16 md:pt-20">
             <div className="relative flex-grow overflow-auto" style={{ WebkitOverflowScrolling: "touch" }}>
               <iframe
                 id="player-iframe"
@@ -1280,13 +1268,13 @@ export default function StreamDashboard({
               {selectedSportsChannel && (
                 <div className="flex flex-wrap items-end gap-3">
                   <div className="flex flex-col gap-1">
-                    <label className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">
+                    <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#6f6f6f]">
                       Stream Server
                     </label>
                     <select
                       value={selectedSportsSource}
                       onChange={(e) => setSelectedSportsSource(e.target.value)}
-                      className="bg-zinc-800 text-white text-sm px-3 py-1.5 rounded border border-white/10 outline-none focus:border-red-600 transition-colors cursor-pointer"
+                      className="cursor-pointer rounded-lg border border-white/10 bg-[#212121] px-3 py-1.5 text-sm text-[#f2f2f2] outline-none transition-colors focus:border-white/40"
                     >
                       <option value="watch">Server 1 (watch - Mobile OK)</option>
                       <option value="cast">Server 2 (cast - Mobile OK)</option>
@@ -1298,7 +1286,7 @@ export default function StreamDashboard({
                   </div>
                   <button
                     onClick={enterFullscreen}
-                    className="inline-flex h-[38px] items-center gap-1.5 rounded bg-zinc-800 border border-white/10 px-4 text-xs font-bold text-white transition-all hover:bg-zinc-700 hover:scale-[1.03] active:scale-95 shadow-md"
+                    className="inline-flex h-[38px] items-center gap-1.5 rounded-lg border border-white/10 bg-[#212121] px-4 text-xs font-semibold text-white transition-colors hover:bg-white/10"
                   >
                     Fullscreen ⛶
                   </button>
@@ -1306,7 +1294,7 @@ export default function StreamDashboard({
                     href={embedUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex h-[38px] items-center gap-1.5 rounded bg-red-600 px-4 text-xs font-bold text-white transition-all hover:bg-red-700 hover:scale-[1.03] active:scale-95 shadow-md shadow-red-950/20"
+                    className="inline-flex h-[38px] items-center gap-1.5 rounded-lg bg-[#e50914] px-4 text-xs font-semibold text-white transition-colors hover:bg-[#ff4651]"
                   >
                     Open in New Tab ↗
                   </a>
@@ -1315,13 +1303,13 @@ export default function StreamDashboard({
 
               {!selectedSportsChannel && (
                 <div className="flex flex-col gap-1">
-                  <label className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">
+                  <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#6f6f6f]">
                     Source
                   </label>
                   <select
                     value={selectedSource}
                     onChange={(e) => setSelectedSource(e.target.value)}
-                    className="bg-zinc-800 text-white text-sm px-3 py-1.5 rounded border border-white/10 outline-none focus:border-red-600 transition-colors cursor-pointer"
+                    className="cursor-pointer rounded-lg border border-white/10 bg-[#212121] px-3 py-1.5 text-sm text-[#f2f2f2] outline-none transition-colors focus:border-white/40"
                   >
                     {EMBED_SOURCES.map((s) => (
                       <option key={s.id} value={s.id}>
@@ -1335,7 +1323,7 @@ export default function StreamDashboard({
               {selectedMediaType === "tv" && !selectedSportsChannel && (
                 <>
                   <div className="flex flex-col gap-1">
-                    <label className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">
+                    <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#6f6f6f]">
                       Season
                     </label>
                     <select
@@ -1344,7 +1332,7 @@ export default function StreamDashboard({
                         setSeason(Number(e.target.value));
                         setEpisode(1);
                       }}
-                      className="bg-zinc-800 text-white text-sm px-3 py-1.5 rounded border border-white/10 outline-none focus:border-red-600 transition-colors cursor-pointer"
+                      className="cursor-pointer rounded-lg border border-white/10 bg-[#212121] px-3 py-1.5 text-sm text-[#f2f2f2] outline-none transition-colors focus:border-white/40"
                     >
                       {Array.from(
                         { length: selectedMovieDetails?.numberOfSeasons || 1 },
@@ -1357,14 +1345,14 @@ export default function StreamDashboard({
                     </select>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">
+                    <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#6f6f6f]">
                       Episode
                     </label>
                     <div className="flex items-center gap-2">
                       <select
                         value={episode}
                         onChange={(e) => setEpisode(Number(e.target.value))}
-                        className="w-20 rounded border border-white/10 bg-zinc-800 px-2 py-1.5 text-sm text-white outline-none transition-colors focus:border-red-600 sm:w-24 sm:px-3"
+                        className="w-20 rounded-lg border border-white/10 bg-[#212121] px-2 py-1.5 text-sm text-[#f2f2f2] outline-none transition-colors focus:border-white/40 sm:w-24 sm:px-3"
                       >
                         {Array.from(
                           {
@@ -1437,18 +1425,20 @@ export default function StreamDashboard({
                   }
                   alt={activeSection === "sports" ? sportsHero.title : heroMovie.title}
                   fill
-                  className="object-cover object-[60%_20%] animate-fade-in"
+                  className="object-cover object-[center_28%] animate-fade-in"
                   priority
                 />
                 {/* cinematic overlays */}
-                <div className="absolute inset-0 z-10 bg-[linear-gradient(90deg,rgba(9,11,18,0.96)_0%,rgba(9,11,18,0.82)_32%,rgba(9,11,18,0.25)_62%,rgba(9,11,18,0)_100%)]" />
-                <div className="absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(9,11,18,0.75)_0%,rgba(9,11,18,0)_22%,rgba(9,11,18,0.35)_70%,#090b12_100%)]" />
+                <div className="absolute inset-0 z-10 bg-[linear-gradient(90deg,rgba(15,15,15,0.95)_0%,rgba(15,15,15,0.72)_34%,rgba(15,15,15,0.18)_64%,rgba(15,15,15,0)_100%)]" />
+                <div className="absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(15,15,15,0.72)_0%,rgba(15,15,15,0)_24%,rgba(15,15,15,0)_66%,rgba(15,15,15,0.55)_88%,rgba(15,15,15,0.9)_100%)]" />
               </div>
 
-              <div className="absolute inset-x-0 bottom-0 z-20 px-4 pb-16 sm:px-6 sm:pb-20 md:px-12 md:pb-24 lg:px-14">
+              <div className="hero-seam" />
+
+              <div className="absolute inset-x-0 bottom-0 z-20 px-6 pb-16 md:px-10 md:pb-[14vh] lg:px-14">
                 <div
                   key={`hero-copy-${activeSection === "sports" ? "sports" : heroMovie.id}`}
-                  className="max-w-[42rem] animate-banner-text"
+                  className="max-w-[560px] animate-banner-text"
                 >
                   {activeSection === "sports" ? (
                     <>
@@ -1456,15 +1446,16 @@ export default function StreamDashboard({
                         <span className="h-1.5 w-1.5 animate-ping rounded-full bg-white" />
                         Live now
                       </div>
-                      <h1 className="font-[var(--font-body)] text-4xl font-extrabold uppercase leading-[0.95] tracking-tight text-[#9db2dd] drop-shadow-[0_6px_30px_rgba(0,0,0,0.7)] sm:text-6xl lg:text-7xl">
+                      <h1 className="font-[var(--font-body)] text-[2.25rem] font-bold uppercase leading-none tracking-[-0.035em] text-[#9db2dd] drop-shadow-[0_8px_24px_rgba(0,0,0,0.55)] md:text-[3.5rem]">
                         {sportsHero.title}
                       </h1>
                     </>
                   ) : (
                     <>
                       <div className="mb-4 flex items-center gap-2.5 text-sm font-semibold text-white">
-                        <span className="flex h-6 items-center rounded-[4px] bg-[#E50914] px-1.5 text-[9px] font-black uppercase tracking-wider text-white">
-                          TMDB
+                        <span className="flex h-6 w-6 flex-col items-center justify-center rounded-[3px] bg-[#e50914] text-[7px] font-extrabold leading-[0.92] tracking-[0.06em] text-white">
+                          <span>TOP</span>
+                          <span className="text-[12px] tracking-[-0.02em]">10</span>
                         </span>
                         <span className="text-white/95">
                           #{heroIndex + 1} in{" "}
@@ -1472,7 +1463,7 @@ export default function StreamDashboard({
                         </span>
                       </div>
 
-                      <h1 className="font-[var(--font-body)] text-4xl font-extrabold uppercase leading-[0.95] tracking-tight text-[#9db2dd] drop-shadow-[0_6px_30px_rgba(0,0,0,0.7)] sm:text-6xl lg:text-[5.2rem]">
+                      <h1 className="font-[var(--font-body)] text-[2.25rem] font-bold uppercase leading-none tracking-[-0.035em] text-[#9db2dd] drop-shadow-[0_8px_24px_rgba(0,0,0,0.55)] md:text-[3.5rem]">
                         {heroMovie.title}
                       </h1>
 
@@ -1552,16 +1543,16 @@ export default function StreamDashboard({
                     )}
                   </button>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-0.5">
                     {heroList.map((movie, index) => (
                       <button
                         key={`${movie.mediaType}-${movie.id}-dot`}
                         onClick={() => setHeroIndex(index)}
                         aria-label={`Show featured title ${index + 1}`}
-                        className={`h-[3px] rounded-full transition-all duration-500 ${
+                        className={`hero-marker ${
                           index === heroIndex % heroList.length
-                            ? "w-8 bg-white"
-                            : "w-6 bg-white/25 hover:bg-white/50"
+                            ? "hero-marker--active"
+                            : ""
                         }`}
                       />
                     ))}
@@ -1588,18 +1579,16 @@ export default function StreamDashboard({
       {/* Rows & Footer (Hidden when player is open for distraction-free viewing) */}
       {!isPlayerOpen && (
         <>
-          <div className="relative z-30 -mt-20 space-y-8 pb-20 md:-mt-32">
+          <div className="relative z-30 -mt-10 space-y-2 pb-20 md:-mt-16">
             {/* Continue Watching Section (Only in Home) */}
             {activeSection === "home" && watchHistory.length > 0 && (
-              <div className="space-y-2 px-4 md:px-12">
-                <h2 className="flex items-center gap-1 text-lg font-bold text-white transition-colors hover:text-gray-300">
-                  Continue Watching <ChevronRight className="h-4 w-4 ml-1" />
-                </h2>
-                <div className="no-scrollbar flex gap-3 overflow-x-auto overflow-y-hidden px-2 py-4 sm:gap-4">
+              <div className="scroll-row">
+                <h2 className="row-heading">Continue Watching</h2>
+                <div className="no-scrollbar flex gap-3 overflow-x-auto overflow-y-hidden px-6 py-4 md:px-10 lg:px-14">
                   {watchHistory.map((movie, idx) => (
                     <div
                       key={`continue-${movie.id}-${idx}`}
-                      className="group relative aspect-video w-[170px] flex-shrink-0 cursor-pointer overflow-hidden rounded-md transition-transform duration-300 hover:scale-105 hover:z-40 sm:w-[200px] md:w-[280px]"
+                      className="group relative aspect-video w-[170px] flex-shrink-0 cursor-pointer overflow-hidden rounded-[10px] border border-white/[0.06] bg-[#181818] transition-all duration-300 hover:scale-[1.03] hover:border-white/25 hover:z-40 sm:w-[200px] md:w-[280px]"
                       onClick={() => playMovie(movie)}
                     >
                       <Image
@@ -1610,23 +1599,25 @@ export default function StreamDashboard({
                         alt={movie.title}
                         fill
                         sizes="(max-width: 640px) 170px, (max-width: 768px) 200px, 280px"
-                        className="object-cover"
+                        className="object-cover transition-transform duration-500 group-hover:scale-105"
                       />
-                      <div className="absolute top-2 left-2 rounded bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white uppercase border border-white/20 backdrop-blur-sm">
+                      <div className="absolute left-2 top-2 rounded bg-black/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white border border-white/20 backdrop-blur-sm">
                         {movie.mediaType === "tv"
                           ? "Resuming"
                           : "Recently Played"}
                       </div>
-                      {/* Progress Bar Mockup */}
-                      <div className="absolute bottom-0 h-1 w-full bg-gray-600/50">
+                      {/* Progress Bar */}
+                      <div className="absolute bottom-0 left-2 right-2 h-[3px] overflow-hidden rounded-full bg-white/25">
                         <div
-                          className="h-full bg-red-600"
+                          className="h-full rounded-full bg-[#e50914]"
                           style={{ width: `${((idx * 7 + 40) % 80) + 20}%` }}
                         />
                       </div>
-                      <div className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/10" />
-                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Play className="h-10 w-10 text-white fill-white" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[rgba(15,15,15,0.92)] via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/70 text-white">
+                          <Play className="h-4 w-4 fill-white" />
+                        </span>
                       </div>
                     </div>
                   ))}
@@ -1635,38 +1626,39 @@ export default function StreamDashboard({
             )}
 
             {activeSection === "sports" && (
-              <div className="space-y-6 px-4 md:px-12">
+              <div className="space-y-6 px-6 md:px-10 lg:px-14">
                 <div className="flex flex-col gap-4 border-b border-white/10 pb-4 md:flex-row md:items-end md:justify-between">
                   <div className="space-y-2">
-                    <h2 className="text-2xl font-black text-white sm:text-3xl flex items-center gap-2">
+                    <h2 className="flex items-center gap-2 text-[22px] font-semibold tracking-[-0.33px] text-[#f2f2f2]">
                       Live Sports & TV
-                      <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-black uppercase tracking-wider text-white animate-pulse">
+                      <span className="brand-chip px-2 py-1 text-[10px] uppercase tracking-[0.08em]">
                         Live
                       </span>
                     </h2>
-                    <p className="text-sm text-gray-400">
-                      Watch live events, schedules, and TV channels dynamically sourced from DaddyLive.
+                    <p className="text-sm text-[#6f6f6f]">
+                      Watch live events, schedules, and TV channels dynamically
+                      sourced from DaddyLive.
                     </p>
                   </div>
 
                   {/* Tabs: Channels vs Schedule */}
-                  <div className="flex rounded-lg bg-white/5 p-1 border border-white/5 self-start">
+                  <div className="flex self-start rounded-full border border-white/[0.06] bg-[#181818] p-1">
                     <button
                       onClick={() => setSportsTab("channels")}
-                      className={`rounded-md px-4 py-1.5 text-xs font-bold transition-all ${
+                      className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-colors ${
                         sportsTab === "channels"
-                          ? "bg-red-600 text-white shadow"
-                          : "text-gray-400 hover:text-white"
+                          ? "bg-white text-black"
+                          : "text-[#b3b3b3] hover:text-white"
                       }`}
                     >
                       TV Channels
                     </button>
                     <button
                       onClick={() => setSportsTab("schedule")}
-                      className={`rounded-md px-4 py-1.5 text-xs font-bold transition-all ${
+                      className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-colors ${
                         sportsTab === "schedule"
-                          ? "bg-red-600 text-white shadow"
-                          : "text-gray-400 hover:text-white"
+                          ? "bg-white text-black"
+                          : "text-[#b3b3b3] hover:text-white"
                       }`}
                     >
                       Live Schedule
@@ -1694,9 +1686,9 @@ export default function StreamDashboard({
                               embedUrl: `https://dlhd.st/stream/stream-${channel.channel_id}.php`,
                             })
                           }
-                          className="group cursor-pointer overflow-hidden rounded-xl border border-white/5 bg-[#11131c] p-3 text-center shadow-xl transition-all duration-300 hover:scale-[1.05] hover:border-red-500/50"
+                          className="group cursor-pointer rounded-xl border border-white/[0.06] bg-[#181818] p-4 text-center transition-all duration-300 hover:-translate-y-0.5 hover:border-white/25"
                         >
-                          <div className="relative mx-auto mb-3 aspect-square w-16 overflow-hidden rounded-lg bg-black/40 p-2 border border-white/10 flex items-center justify-center">
+                          <div className="relative mx-auto mb-3 flex aspect-square w-14 items-center justify-center overflow-hidden rounded-[10px] border border-white/[0.06] bg-black/40 p-2">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                               src={getLogoUrl(channel.logo_url)}
@@ -1708,7 +1700,7 @@ export default function StreamDashboard({
                               }}
                             />
                           </div>
-                          <h3 className="text-xs font-bold text-gray-200 line-clamp-2 group-hover:text-red-400 transition-colors">
+                          <h3 className="line-clamp-2 text-[13px] font-medium leading-snug text-[#b3b3b3] transition-colors group-hover:text-[#f2f2f2]">
                             {channel.channel_name}
                           </h3>
                         </div>
@@ -1723,11 +1715,11 @@ export default function StreamDashboard({
                     <div className="space-y-8">
                       {Object.keys(sportsSchedule).map((dayKey) => (
                         <div key={dayKey} className="space-y-4">
-                          <h3 className="text-lg font-bold text-red-500 border-b border-red-500/20 pb-1">{dayKey}</h3>
+                          <h3 className="border-b border-white/[0.06] pb-2 text-[18px] font-semibold tracking-[-0.3px] text-[#f2f2f2]">{dayKey}</h3>
                           
                           {Object.keys(sportsSchedule[dayKey]).map((categoryKey) => (
                             <div key={categoryKey} className="space-y-3 pl-2">
-                              <h4 className="text-sm font-semibold text-gray-300 bg-white/5 px-3 py-1 rounded w-fit">
+                              <h4 className="w-fit rounded-full bg-[#212121] px-3 py-1 text-xs font-semibold text-[#b3b3b3]">
                                 {categoryKey}
                               </h4>
                               
@@ -1735,13 +1727,13 @@ export default function StreamDashboard({
                                 {sportsSchedule[dayKey][categoryKey].map((event: any, idx: number) => (
                                   <div
                                     key={`${event.event}-${idx}`}
-                                    className="flex flex-col gap-4 rounded-xl border border-white/5 bg-[#11131c]/60 p-4 transition-colors hover:border-white/10 sm:flex-row sm:items-center sm:justify-between"
+                                    className="flex flex-col gap-4 rounded-xl border border-white/[0.06] bg-[#181818] p-4 transition-colors hover:border-white/20 sm:flex-row sm:items-center sm:justify-between"
                                   >
                                     <div className="space-y-1">
-                                      <span className="inline-block rounded bg-red-600/20 text-red-400 text-[10px] font-bold px-2 py-0.5">
+                                      <span className="inline-block rounded bg-[#e50914]/15 px-2 py-0.5 text-[10px] font-bold text-[#ff4651]">
                                         {event.time} GMT
                                       </span>
-                                      <h5 className="font-bold text-white text-sm sm:text-base">{event.event}</h5>
+                                      <h5 className="text-sm font-semibold text-[#f2f2f2] sm:text-base">{event.event}</h5>
                                     </div>
                                     
                                     {/* Event Channels Badges */}
@@ -1756,7 +1748,7 @@ export default function StreamDashboard({
                                               embedUrl: `https://dlhd.st/stream/stream-${chan.channel_id}.php`,
                                             })
                                           }
-                                          className="flex items-center gap-1.5 rounded-lg bg-white/5 border border-white/10 px-3 py-1.5 text-xs text-gray-300 transition-all hover:bg-red-600 hover:text-white hover:border-red-600"
+                                          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-[#b3b3b3] transition-all hover:border-white/30 hover:bg-white/10 hover:text-white"
                                         >
                                           <img
                                             src={getLogoUrl(chan.logo_url)}
@@ -1787,164 +1779,63 @@ export default function StreamDashboard({
             {filteredCategories.map((category) => {
               const isTop10 = category.key.includes("top-10");
               return (
-                <div key={category.key} className="space-y-3 px-4 md:px-10 lg:px-14">
-                  <h2 className="flex items-center gap-1.5 text-[19px] font-bold tracking-tight text-white transition-colors hover:text-gray-200 cursor-pointer group/title">
-                    {isTop10 ? "TOP 10 on DesiMovies" : category.label}
-                    <ChevronRight className="h-5 w-5 text-[#E50914] opacity-0 -translate-x-1 transition-all duration-200 group-hover/title:opacity-100 group-hover/title:translate-x-0" />
-                  </h2>
-
-                  <div className="relative">
-                    <div className="no-scrollbar flex gap-3 overflow-x-auto overflow-y-hidden py-6 px-1">
-                      {category.movies.length === 0 && (
-                        <div className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-6 py-10 text-center">
-                          <p className="text-sm font-semibold text-white/70">
-                            No titles here yet
-                          </p>
-                          <p className="mt-1 text-xs text-white/40">
-                            We couldn&apos;t find anything in this category. Try
-                            another section.
-                          </p>
-                        </div>
-                      )}
-                      {category.movies.map((movie, index) => (
-                        <div
-                          key={`${category.key}-${movie.id}`}
-                          className={`group/card relative flex-shrink-0 cursor-pointer ${isTop10 ? "h-[220px] w-[160px] ml-8 first:ml-5 sm:h-[250px] sm:w-[180px] sm:ml-10 sm:first:ml-7 md:h-[280px] md:w-[200px] md:ml-12 md:first:ml-8" : "h-[200px] w-[140px] sm:h-[220px] sm:w-[150px] md:h-[270px] md:w-[185px]"}`}
-                          onClick={() => openDetail(movie)}
-                        >
-                          {isTop10 && (
-                            <span className="top10-number -left-14">
-                              {index + 1}
-                            </span>
-                          )}
-
-                          {/* Card */}
-                          <div className="relative h-full w-full overflow-hidden rounded-lg shadow-xl bg-zinc-900 transition-all duration-300 group-hover/card:scale-110 group-hover/card:shadow-[0_20px_60px_rgba(0,0,0,0.8)] group-hover/card:z-40 group-hover/card:ring-2 group-hover/card:ring-white/20">
-                            {posterUrl(movie.posterPath) ||
-                              backdropUrl(movie.backdropPath) ? (
-                              <Image
-                                src={
-                                  posterUrl(movie.posterPath) ||
-                                  backdropUrl(movie.backdropPath)!
-                                }
-                                alt={movie.title}
-                                fill
-                                sizes="(max-width: 640px) 140px, (max-width: 768px) 150px, 185px"
-                                className="object-cover transition-transform duration-500 group-hover/card:scale-105"
-                              />
-                            ) : (
-                              <div className="flex h-full w-full items-center justify-center bg-zinc-800 p-3 text-center">
-                                <p className="text-xs font-bold text-gray-500 uppercase">
-                                  {movie.title}
-                                </p>
-                              </div>
-                            )}
-
-                            {/* Gradient overlay always visible at bottom */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover/card:opacity-100 transition-opacity duration-300" />
-
-                            {/* Hover info panel */}
-                            <div className="absolute bottom-0 left-0 right-0 translate-y-full group-hover/card:translate-y-0 transition-transform duration-300 p-3 bg-gradient-to-t from-black via-black/95 to-transparent rounded-b-lg">
-                              <p className="text-xs font-bold text-white leading-tight line-clamp-2 mb-2">
-                                {movie.title}
-                              </p>
-                              <div className="flex items-center gap-2">
-                                {/* Play button */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    openDetail(movie);
-                                  }}
-                                  className="flex items-center justify-center w-8 h-8 rounded-full bg-white hover:bg-gray-200 transition-all duration-200 hover:scale-110 flex-shrink-0"
-                                  title="Play"
-                                >
-                                  <Play className="h-3.5 w-3.5 text-black fill-black ml-0.5" />
-                                </button>
-                                {/* My List button */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleMyList(movie);
-                                  }}
-                                  className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-200 hover:scale-110 flex-shrink-0 ${isInMyList(movie)
-                                    ? "border-white bg-white text-black"
-                                    : "border-gray-400 bg-transparent text-white hover:border-white"
-                                    }`}
-                                  title={
-                                    isInMyList(movie)
-                                      ? "Remove from My List"
-                                      : "Add to My List"
-                                  }
-                                >
-                                  <span className="text-sm font-bold leading-none">
-                                    {isInMyList(movie) ? "✓" : "+"}
-                                  </span>
-                                </button>
-                                {/* Rating */}
-                                {movie.rating > 0 && (
-                                  <span className="ml-auto text-[10px] font-bold text-green-400">
-                                    ⭐ {movie.rating}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* New badge */}
-                            {index === 0 && (
-                              <div className="absolute top-2 left-0 bg-[#E50914] px-2 py-0.5 text-[9px] font-black text-white uppercase tracking-widest">
-                                NEW
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  {/* Empty My List state */}
-                  {activeSection === "my-list" && myList.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-24 text-center">
-                      <div className="mb-4 text-6xl">📋</div>
-                      <h3 className="text-xl font-bold text-white mb-2">
-                        Your list is empty
-                      </h3>
-                      <p className="text-gray-400 text-sm max-w-xs">
-                        Hover over any movie or show and click{" "}
-                        <strong>+</strong> to save it here for later.
-                      </p>
-                    </div>
-                  )}
-                </div>
+                <MovieRow
+                  key={category.key}
+                  title={isTop10 ? "TOP 10 on DesiMovies" : category.label}
+                  movies={category.movies}
+                  isTop10={isTop10}
+                  onOpen={openDetail}
+                  onToggleList={toggleMyList}
+                  isInList={isInMyList}
+                />
               );
             })}
           </div>
 
           {/* Footer */}
-          <footer className="px-4 py-10 text-gray-500 md:px-12">
-            <div className="mb-8 flex gap-8">
-              {/* Social links placeholder */}
+          <footer className="mt-8 border-t border-white/[0.08] px-6 py-12 md:px-10 lg:px-14">
+            <div className="mb-8 flex items-center gap-3">
+              <span className="font-[var(--font-heading)] text-3xl leading-none tracking-tighter text-[#e50914]">
+                D
+              </span>
+              <span className="text-[11px] uppercase tracking-[0.26em] text-[#6f6f6f]">
+                Desi Movies
+              </span>
             </div>
-            <div className="grid grid-cols-2 gap-4 text-xs md:grid-cols-4">
-              <div>Audio and Subtitles</div>
-              <div>Audio Description</div>
-              <div>Help Center</div>
-              <div>Gift Cards</div>
-              <div>Media Center</div>
-              <div>Investor Relations</div>
-              <div>Jobs</div>
-              <div>Terms of Use</div>
-              <div>Privacy</div>
-              <div>Legal Notices</div>
-              <div>Cookie Preferences</div>
-              <div>Corporate Information</div>
-              <div>Contact Us</div>
+
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-[13px] text-[#b3b3b3] sm:grid-cols-3 lg:grid-cols-4">
+              {[
+                "Audio and Subtitles",
+                "Audio Description",
+                "Help Center",
+                "Gift Cards",
+                "Media Center",
+                "Investor Relations",
+                "Jobs",
+                "Terms of Use",
+                "Privacy",
+                "Legal Notices",
+                "Cookie Preferences",
+                "Corporate Information",
+                "Contact Us",
+              ].map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className="text-left transition-colors duration-200 hover:text-[#f2f2f2]"
+                >
+                  {item}
+                </button>
+              ))}
             </div>
-            <div className="mt-8">
-              <button className="border border-gray-500 px-2 py-1 text-xs">
+
+            <div className="mt-8 flex flex-wrap items-center gap-4">
+              <button className="rounded border border-white/20 px-3 py-1.5 text-xs text-[#b3b3b3] transition-colors hover:border-white/50 hover:text-[#f2f2f2]">
                 Service Code
               </button>
-            </div>
-            <div className="mt-4 text-[10px]">
-              © 1997-2026 desimaovies, Inc.
+              <p className="text-[11px] text-[#6f6f6f]">
+                © 2026 DesiMovies. All rights reserved.
+              </p>
             </div>
           </footer>
         </>
@@ -1952,49 +1843,48 @@ export default function StreamDashboard({
 
       {/* Search Results Overlay */}
       {searchQuery && (
-        <div className="fixed inset-0 z-[60] bg-[#141414] overflow-y-auto">
+        <div className="fixed inset-0 z-[60] overflow-y-auto bg-[#0f0f0f]">
           {/* Search Header */}
-          <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 bg-[#141414] px-4 py-4 md:px-12">
+          <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] bg-[#0f0f0f]/95 px-6 py-4 backdrop-blur-xl md:px-10 lg:px-14">
             <div className="flex w-full items-center gap-3 sm:w-auto sm:gap-8">
-              <div
-                className="cursor-pointer text-xl font-black tracking-tighter text-[#E50914] sm:text-2xl"
+              <button
+                className="cursor-pointer font-[var(--font-heading)] text-3xl leading-none tracking-tighter text-[#e50914]"
                 onClick={() => setSearchQuery("")}
               >
-                desimaovies
-              </div>
-              <div className="flex min-w-0 flex-1 items-center gap-2 border border-white/40 bg-black/40 px-3 py-1.5 sm:w-64 md:w-96">
-                <SearchIcon className="h-5 w-5 text-gray-400" />
+                D
+              </button>
+              <div className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-white/10 bg-[#181818] px-4 py-2 transition-colors focus-within:border-white/30 sm:w-72 md:w-96">
+                <SearchIcon className="h-4 w-4 text-[#6f6f6f]" />
                 <input
                   type="text"
                   placeholder="Titles, genres, or TMDB ID"
-                  className="bg-transparent text-sm text-white outline-none w-full"
+                  className="w-full bg-transparent text-sm text-[#f2f2f2] outline-none placeholder:text-[#6f6f6f]"
                   value={searchQuery}
                   onChange={(e) => handleSearch(e.target.value)}
                   autoFocus
                 />
-                <X
-                  className="h-5 w-5 cursor-pointer text-gray-400 hover:text-white"
+                <button
+                  aria-label="Close search"
                   onClick={() => setSearchQuery("")}
-                />
+                  className="text-[#6f6f6f] transition-colors hover:text-[#f2f2f2]"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
             </div>
             <button
               onClick={() => setSearchQuery("")}
-              className="ml-auto flex items-center gap-2 text-white hover:text-gray-300"
+              className="ml-auto flex items-center gap-2 text-[#f2f2f2] transition-colors hover:text-white"
             >
-              <span className="hidden md:inline text-sm font-medium">
-                Close
-              </span>
-              <X className="h-6 w-6" />
+              <span className="hidden text-sm font-medium md:inline">Close</span>
+              <X className="h-5 w-5" />
             </button>
           </div>
 
-          <div className="px-4 pb-20 pt-8 md:px-12">
-            <h2 className="mb-8 text-xl font-medium text-gray-400">
-              Showing results for:{" "}
-              <span className="text-white font-bold">
-                &quot;{searchQuery}&quot;
-              </span>
+          <div className="px-6 pb-20 pt-8 md:px-10 lg:px-14">
+            <h2 className="mb-6 text-[22px] font-semibold tracking-[-0.33px] text-[#f2f2f2]">
+              Showing results for{" "}
+              <span className="text-[#b3b3b3]">&quot;{searchQuery}&quot;</span>
             </h2>
 
             {isSearchLoading ? (
@@ -2005,47 +1895,16 @@ export default function StreamDashboard({
                 </p>
               </div>
             ) : searchResults.length > 0 ? (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8">
+              <div className="grid grid-cols-3 gap-x-3 gap-y-6 sm:grid-cols-4 sm:gap-4 md:grid-cols-6 lg:grid-cols-8">
                 {searchResults.map((movie) => (
-                  <div
-                    key={movie.id}
-                    className="group relative aspect-[2/3] cursor-pointer overflow-hidden rounded-md bg-zinc-800 transition hover:scale-110 hover:z-10"
-                    onClick={() => {
-                      playMovie(movie);
+                  <MovieCard
+                    key={`${movie.mediaType}-${movie.id}`}
+                    movie={movie}
+                    onOpen={(item) => {
+                      playMovie(item);
                       setSearchQuery("");
                     }}
-                  >
-                    {posterUrl(movie.posterPath) ||
-                      backdropUrl(movie.backdropPath) ? (
-                      <Image
-                        src={
-                          posterUrl(movie.posterPath) ||
-                          backdropUrl(movie.backdropPath)!
-                        }
-                        alt={movie.title}
-                        fill
-                        className="object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full flex-col items-center justify-center bg-zinc-800 p-2 text-center">
-                        <p className="text-[10px] font-bold text-gray-500 uppercase">
-                          {movie.title}
-                        </p>
-                        <p className="text-[8px] text-gray-600 italic">
-                          No Artwork
-                        </p>
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-black/60 p-2 opacity-0 transition-opacity group-hover:opacity-100 flex flex-col justify-end">
-                      <p className="line-clamp-2 text-[10px] font-bold text-white leading-tight">
-                        {movie.title}
-                      </p>
-                      <p className="text-[8px] text-gray-300">
-                        {movie.rating} •{" "}
-                        {movie.mediaType === "tv" ? "TV" : "Movie"}
-                      </p>
-                    </div>
-                  </div>
+                  />
                 ))}
               </div>
             ) : (
@@ -2071,11 +1930,11 @@ export default function StreamDashboard({
           onClick={closeDetail}
         >
           {/* Backdrop blur */}
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-md" />
 
           {/* Modal Card */}
           <div
-            className="relative z-10 max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-zinc-900 shadow-2xl scrollbar-thin scrollbar-track-zinc-800 scrollbar-thumb-zinc-600"
+            className="relative z-10 max-h-[92vh] w-full max-w-[860px] overflow-y-auto rounded-2xl border border-white/[0.06] bg-[#181818] shadow-[0_40px_120px_rgba(0,0,0,0.85)]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Backdrop image header */}
@@ -2099,19 +1958,20 @@ export default function StreamDashboard({
                 </div>
               )}
               {/* Gradient over image */}
-              <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/40 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#181818] via-[#181818]/40 to-transparent" />
 
               {/* Close button */}
               <button
                 onClick={closeDetail}
-                className="absolute top-4 right-4 flex h-9 w-9 items-center justify-center rounded-full bg-zinc-800/80 text-white backdrop-blur-sm hover:bg-zinc-700 transition-colors"
+                aria-label="Close"
+                className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-black/70 text-white backdrop-blur-md transition-colors hover:border-white/40"
               >
                 <X className="h-5 w-5" />
               </button>
 
               {/* Title over image */}
               <div className="absolute bottom-4 left-5 right-5">
-                <h2 className="text-2xl font-black text-white md:text-3xl leading-tight">
+                <h2 className="text-[28px] font-bold leading-tight tracking-[-0.035em] text-white md:text-[34px]">
                   {(detailData ?? detailMovie).title}
                 </h2>
               </div>
@@ -2120,32 +1980,37 @@ export default function StreamDashboard({
             {/* Info section */}
             <div className="relative space-y-6 p-4 sm:p-6">
               {isLoadingDetail && (
-                <div className="absolute inset-0 z-20 flex items-center justify-center bg-zinc-900/60 backdrop-blur-[2px]">
-                  <div className="h-10 w-10 animate-spin rounded-full border-4 border-red-600 border-t-transparent" />
+                <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#181818]/70 backdrop-blur-[2px]">
+                  <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#e50914] border-t-transparent" />
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-[1fr_200px] gap-8">
+              <div className="grid grid-cols-1 gap-8 md:grid-cols-[1fr_210px]">
                 <div className="space-y-4">
                   {/* Meta row */}
-                  <div className="flex flex-wrap items-center gap-3 text-sm">
+                  <div className="flex flex-wrap items-center gap-3 text-[13px] text-[#b3b3b3]">
                     {(detailData ?? detailMovie).rating > 0 && (
-                      <span className="font-bold text-green-400">
-                        {(detailData ?? detailMovie).rating * 10}% Match
+                      <span className="flex items-center gap-1.5 font-semibold text-[#f2f2f2]">
+                        <svg
+                          viewBox="0 0 24 24"
+                          className="h-3.5 w-3.5 fill-[#e50914] text-[#e50914]"
+                          aria-hidden="true"
+                        >
+                          <path d="M12 2l2.9 6.26L21.5 9.3l-4.8 4.4 1.3 6.5L12 16.9 6 20.2l1.3-6.5L2.5 9.3l6.6-1.04L12 2z" />
+                        </svg>
+                        {(detailData ?? detailMovie).rating.toFixed(1)}
                       </span>
                     )}
                     {(detailData ?? detailMovie).releaseDate && (
-                      <span className="text-gray-400">
+                      <span>
                         {(detailData ?? detailMovie).releaseDate.slice(0, 4)}
                       </span>
                     )}
-                    <span
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border ${detailMovie.mediaType === "tv" ? "border-blue-500 text-blue-400" : "border-gray-500 text-gray-400"}`}
-                    >
+                    <span className="rounded border border-white/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#b3b3b3]">
                       {detailMovie.mediaType === "tv" ? "Series" : "Movie"}
                     </span>
                     {(detailData as any)?.genres?.slice(0, 3).map((g: any) => (
-                      <span key={g} className="text-gray-300 font-medium">
+                      <span key={g} className="font-medium text-[#b3b3b3]">
                         {g}
                       </span>
                     ))}
@@ -2153,7 +2018,7 @@ export default function StreamDashboard({
 
                   {/* Overview */}
                   {(detailData ?? (detailMovie as any)).overview && (
-                    <p className="text-sm text-gray-300 leading-relaxed">
+                    <p className="text-sm leading-relaxed text-[#b3b3b3]">
                       {(detailData ?? (detailMovie as any)).overview}
                     </p>
                   )}
@@ -2162,16 +2027,17 @@ export default function StreamDashboard({
                   <div className="flex flex-wrap items-center gap-3 pt-2">
                     <button
                       onClick={() => playMovie(detailMovie)}
-                      className="flex items-center gap-2 rounded bg-white px-5 py-2 text-sm font-bold text-black transition-all hover:scale-105 hover:bg-white/90 sm:px-8"
+                      className="flex items-center gap-2 rounded-lg bg-white px-6 py-2.5 text-sm font-bold text-black transition-all duration-200 hover:bg-white/90"
                     >
                       <Play className="h-4 w-4 fill-black" /> Play
                     </button>
                     <button
                       onClick={() => toggleMyList(detailMovie)}
-                      className={`flex items-center justify-center h-10 w-10 rounded-full border-2 transition-all hover:scale-105 ${isInMyList(detailMovie)
-                        ? "border-white bg-white text-black"
-                        : "border-gray-500 bg-transparent text-white hover:border-white"
-                        }`}
+                      className={`flex h-10 w-10 items-center justify-center rounded-full border transition-all duration-200 hover:scale-105 ${
+                        isInMyList(detailMovie)
+                          ? "border-white bg-white text-black"
+                          : "border-white/25 bg-transparent text-white hover:border-white"
+                      }`}
                       title={
                         isInMyList(detailMovie)
                           ? "In My List"
@@ -2187,22 +2053,16 @@ export default function StreamDashboard({
 
                 <div className="space-y-4 text-xs">
                   <div>
-                    <span className="text-gray-500">Cast: </span>
-                    <span className="text-gray-300">
-                      Action, Adventure, Fantasy...
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">Genres: </span>
-                    <span className="text-gray-300">
+                    <span className="text-[#6f6f6f]">Genres: </span>
+                    <span className="text-[#b3b3b3]">
                       {(detailData as SearchResult)?.genres?.join(", ") ||
                         "N/A"}
                     </span>
                   </div>
                   {(detailData as SearchResult)?.tagline && (
                     <div>
-                      <span className="text-gray-500">This show is: </span>
-                      <span className="text-gray-300 italic">
+                      <span className="text-[#6f6f6f]">This show is: </span>
+                      <span className="italic text-[#b3b3b3]">
                         {(detailData as SearchResult).tagline}
                       </span>
                     </div>
@@ -2212,13 +2072,15 @@ export default function StreamDashboard({
 
               {/* Episodes Section for TV */}
               {detailMovie.mediaType === "tv" && (
-                <div className="space-y-4 pt-4 border-t border-white/10">
+                <div className="space-y-4 border-t border-white/[0.06] pt-6">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h3 className="text-xl font-bold text-white">Episodes</h3>
+                    <h3 className="text-[22px] font-semibold tracking-[-0.33px] text-[#f2f2f2]">
+                      Episodes
+                    </h3>
                     <select
                       value={detailSeason}
                       onChange={(e) => setDetailSeason(Number(e.target.value))}
-                      className="bg-zinc-800 text-white text-sm px-3 py-1.5 rounded border border-white/10 outline-none focus:border-red-600 cursor-pointer"
+                      className="cursor-pointer rounded-lg border border-white/10 bg-[#212121] px-3 py-1.5 text-sm text-[#f2f2f2] outline-none transition-colors focus:border-white/40"
                     >
                       {Array.from(
                         {
@@ -2241,7 +2103,7 @@ export default function StreamDashboard({
                       detailData.seasonDetails.map((ep: any) => (
                         <div
                           key={ep.id}
-                          className="group/ep flex flex-col items-start gap-3 rounded-lg border border-transparent p-3 transition-colors hover:border-white/10 hover:bg-zinc-800 sm:flex-row sm:items-center sm:gap-4 sm:p-4"
+                          className="group/ep flex cursor-pointer flex-col items-start gap-3 rounded-xl border border-transparent p-3 transition-colors hover:border-white/[0.06] hover:bg-[#212121] sm:flex-row sm:items-center sm:gap-4 sm:p-4"
                           onClick={() =>
                             playMovie(detailMovie, {
                               season: detailSeason,
@@ -2249,10 +2111,10 @@ export default function StreamDashboard({
                             })
                           }
                         >
-                          <span className="w-6 text-xl font-bold text-gray-500">
+                          <span className="w-6 text-xl font-semibold text-[#6f6f6f]">
                             {ep.episode_number}
                           </span>
-                          <div className="relative aspect-video w-32 shrink-0 overflow-hidden rounded bg-zinc-800">
+                          <div className="relative aspect-video w-32 shrink-0 overflow-hidden rounded-lg bg-[#212121]">
                             {ep.still_path ? (
                               <Image
                                 src={`https://image.tmdb.org/t/p/w300${ep.still_path}`}
@@ -2262,20 +2124,20 @@ export default function StreamDashboard({
                               />
                             ) : (
                               <div className="flex h-full w-full items-center justify-center">
-                                <Play className="h-6 w-6 text-gray-600" />
+                                <Play className="h-6 w-6 text-[#6f6f6f]" />
                               </div>
                             )}
-                            <div className="absolute inset-0 bg-black/20 group-hover/ep:bg-black/0 transition-colors" />
+                            <div className="absolute inset-0 bg-black/20 transition-colors group-hover/ep:bg-black/0" />
                           </div>
                           <div className="flex-grow">
-                            <h4 className="text-sm font-bold text-white">
+                            <h4 className="text-sm font-semibold text-[#f2f2f2]">
                               {ep.name}
                             </h4>
-                            <p className="text-xs text-gray-400 line-clamp-2 mt-1">
+                            <p className="mt-1 line-clamp-2 text-xs text-[#6f6f6f]">
                               {ep.overview || "No description available."}
                             </p>
                           </div>
-                          <div className="text-xs text-gray-500 font-medium whitespace-nowrap">
+                          <div className="whitespace-nowrap text-xs font-medium text-[#6f6f6f]">
                             {ep.runtime} min
                           </div>
                         </div>
@@ -2296,38 +2158,17 @@ export default function StreamDashboard({
 
               {/* Similar Media Section */}
               {detailData?.similar && detailData.similar.length > 0 && (
-                <div className="space-y-4 pt-4 border-t border-white/10">
-                  <h3 className="text-xl font-bold text-white">
+                <div className="space-y-4 border-t border-white/[0.06] pt-6">
+                  <h3 className="text-[22px] font-semibold tracking-[-0.33px] text-[#f2f2f2]">
                     More Like This
                   </h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                    {detailData.similar.slice(0, 6).map((item) => (
-                      <div
-                        key={item.id}
-                        className="group/item relative aspect-video cursor-pointer overflow-hidden rounded-md bg-zinc-800 transition hover:z-10"
-                        onClick={() => openDetail(item)}
-                      >
-                        <Image
-                          src={
-                            backdropUrl(item.backdropPath) ||
-                            posterUrl(item.posterPath)!
-                          }
-                          alt={item.title}
-                          fill
-                          className="object-cover transition-transform group-hover/item:scale-105"
-                        />
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/item:opacity-100 transition-opacity">
-                          <Play className="h-8 w-8 text-white fill-white" />
-                        </div>
-                        <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/90 to-transparent">
-                          <p className="text-[10px] font-bold text-white truncate">
-                            {item.title}
-                          </p>
-                          <p className="text-[9px] text-green-400 font-medium">
-                            {item.rating * 10}% Match
-                          </p>
-                        </div>
-                      </div>
+                  <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 sm:gap-4">
+                    {detailData.similar.slice(0, 8).map((item) => (
+                      <MovieCard
+                        key={`${item.mediaType}-${item.id}`}
+                        movie={item}
+                        onOpen={openDetail}
+                      />
                     ))}
                   </div>
                 </div>

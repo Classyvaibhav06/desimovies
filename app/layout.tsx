@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Bebas_Neue, Space_Grotesk } from "next/font/google";
+import { Bebas_Neue, Inter } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
@@ -9,7 +9,7 @@ const headingFont = Bebas_Neue({
   variable: "--font-heading",
 });
 
-const bodyFont = Space_Grotesk({
+const bodyFont = Inter({
   subsets: ["latin"],
   variable: "--font-body",
 });
