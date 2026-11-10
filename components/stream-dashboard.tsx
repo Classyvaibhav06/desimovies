@@ -13,6 +13,14 @@ import type {
 import { MovieCard, MovieRow } from "@/components/movie-card";
 import { backdropUrl, posterUrl } from "@/lib/media-urls";
 import {
+  buildVidyUrl,
+  isVidyOrigin,
+  parseVidyPayload,
+  readWatchPositions,
+  watchPositionKey,
+  writeWatchPosition,
+} from "@/lib/vidy";
+import {
   Play,
   Pause,
   Info,
@@ -106,6 +114,11 @@ type InitialDetail = {
 
 const EMBED_SOURCES = [
   {
+    id: "vidy",
+    name: "Vidy (HD Player)",
+    url: "https://www.vidy.st",
+  },
+  {
     id: "vidsrc_wiki",
     name: "Source 1 (VidSrc Wiki)",
     url: "https://vidsrc.wiki",
@@ -132,8 +145,19 @@ function buildEmbedUrl(
   tmdbId: number,
   season: number,
   episode: number,
-  sourceId: string = "vidsrc_wiki",
+  sourceId: string = "vidy",
+  progressSeconds: number = 0,
 ): string {
+  if (sourceId === "vidy") {
+    return buildVidyUrl({
+      mediaType,
+      tmdbId,
+      season,
+      episode,
+      progressSeconds,
+    });
+  }
+
   if (sourceId === "cinesrc") {
     return mediaType === "tv"
       ? `https://cinesrc.st/embed/tv/${tmdbId}/${season}/${episode}`
@@ -170,7 +194,7 @@ function buildWatchPath(
     params.set("season", String(season));
     params.set("episode", String(episode));
   }
-  if (sourceId && sourceId !== "vidsrc_wiki") {
+  if (sourceId && sourceId !== "vidy") {
     params.set("source", sourceId);
   }
   const query = params.toString();
@@ -341,8 +365,12 @@ export default function StreamDashboard({
   const [detailSeason, setDetailSeason] = useState(1);
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
   const [selectedSource, setSelectedSource] = useState<string>(
-    initialPlayback?.sourceId ?? "vidsrc_wiki",
+    initialPlayback?.sourceId ?? "vidy",
   );
+  const [resumeAt, setResumeAt] = useState<number>(0);
+  const [watchPositions, setWatchPositions] = useState<
+    Record<string, { currentTime: number; duration: number; updatedAt: number }>
+  >({});
 
   const searchClientCacheRef = useRef<Map<string, SearchResult[]>>(new Map());
   const searchAbortControllerRef = useRef<AbortController | null>(null);
@@ -435,6 +463,8 @@ export default function StreamDashboard({
 
     const savedHistory = localStorage.getItem("watchHistory");
     if (savedHistory) setWatchHistory(JSON.parse(savedHistory));
+
+    setWatchPositions(readWatchPositions());
   }, []);
 
   // Save to local storage
@@ -445,6 +475,67 @@ export default function StreamDashboard({
   useEffect(() => {
     localStorage.setItem("watchHistory", JSON.stringify(watchHistory));
   }, [watchHistory]);
+
+  /**
+   * Vidy player integration — the embed posts PLAYER_EVENT payloads to the
+   * parent page, which we use to remember the watch position per title so we
+   * can resume and render real progress bars.
+   */
+  const activePositionKey = watchPositionKey(
+    selectedMediaType,
+    selectedMovieId,
+    season,
+    episode,
+  );
+
+  useEffect(() => {
+    if (!isPlayerOpen) return;
+
+    function handleVidyMessage(event: MessageEvent) {
+      if (!isVidyOrigin(event.origin)) return;
+      const payload = parseVidyPayload(event.data);
+      if (!payload || !payload.event) return;
+
+      const currentTime = Number(payload.currentTime) || 0;
+      const duration = Number(payload.duration) || 0;
+
+      // Finished the title — clear the saved position so it starts fresh next time
+      if (payload.event === "ended") {
+        setWatchPositions((prev) => {
+          const next = { ...prev };
+          delete next[activePositionKey];
+          try {
+            window.localStorage.setItem(
+              "vidy:watch-positions",
+              JSON.stringify(next),
+            );
+          } catch {
+            /* storage disabled — ignore */
+          }
+          return next;
+        });
+        return;
+      }
+
+      if (!currentTime) return;
+
+      setWatchPositions((prev) => {
+        const next = {
+          ...prev,
+          [activePositionKey]: {
+            currentTime,
+            duration: duration || prev[activePositionKey]?.duration || 0,
+            updatedAt: Date.now(),
+          },
+        };
+        writeWatchPosition(activePositionKey, next[activePositionKey]);
+        return next;
+      });
+    }
+
+    window.addEventListener("message", handleVidyMessage);
+    return () => window.removeEventListener("message", handleVidyMessage);
+  }, [isPlayerOpen, activePositionKey]);
 
   // Auto-scroll navbar effect
   useEffect(() => {
@@ -461,8 +552,21 @@ export default function StreamDashboard({
     setSelectedMovieId(initialPlayback.id);
     setSeason(initialPlayback.season ?? 1);
     setEpisode(initialPlayback.episode ?? 1);
-    setSelectedSource(initialPlayback.sourceId ?? "vidsrc_wiki");
+    setSelectedSource(initialPlayback.sourceId ?? "vidy");
     setIsPlayerOpen(true);
+
+    // Resume where the viewer left off (Vidy stores the position for us)
+    const stored = readWatchPositions()[
+      watchPositionKey(
+        initialPlayback.mediaType,
+        initialPlayback.id,
+        initialPlayback.season ?? 1,
+        initialPlayback.episode ?? 1,
+      )
+    ];
+    setResumeAt(
+      stored?.currentTime && stored.currentTime > 30 ? stored.currentTime : 0,
+    );
   }, [initialPlayback]);
 
   useEffect(() => {
@@ -587,9 +691,10 @@ export default function StreamDashboard({
         season,
         episode,
         selectedSource,
+        resumeAt,
       );
     },
-    [selectedMediaType, selectedMovieId, season, episode, selectedSource, selectedSportsChannel, selectedSportsSource],
+    [selectedMediaType, selectedMovieId, season, episode, selectedSource, selectedSportsChannel, selectedSportsSource, resumeAt],
   );
 
   const heroList = useMemo(() => {
@@ -814,6 +919,12 @@ export default function StreamDashboard({
     setDetailMovie(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
 
+    // Resume where the viewer left off (Vidy posts the position to us)
+    const stored = readWatchPositions()[
+      watchPositionKey(movie.mediaType, movie.id, nextSeason, nextEpisode)
+    ];
+    setResumeAt(stored?.currentTime && stored.currentTime > 30 ? stored.currentTime : 0);
+
     // Update watch history
     setWatchHistory((prev) => {
       const filtered = prev.filter(
@@ -931,6 +1042,23 @@ export default function StreamDashboard({
   function isInMyList(movie: MovieSummary | SearchResult) {
     return myList.some(
       (m) => m.id === movie.id && m.mediaType === movie.mediaType,
+    );
+  }
+
+  /** Playback progress (0-100) reported by the Vidy player. */
+  function progressFor(movie: MovieSummary | SearchResult): number {
+    const prefix = `${movie.mediaType}-${movie.id}-`;
+    const entries = Object.entries(watchPositions).filter(([key]) =>
+      key.startsWith(prefix),
+    );
+    if (entries.length === 0) return 0;
+    const latest = entries.sort(
+      (a, b) => b[1].updatedAt - a[1].updatedAt,
+    )[0][1];
+    if (!latest.duration) return 0;
+    return Math.min(
+      100,
+      Math.max(0, Math.round((latest.currentTime / latest.duration) * 100)),
     );
   }
 
@@ -1251,7 +1379,7 @@ export default function StreamDashboard({
                 className="absolute inset-0 h-full w-full border-0"
                 scrolling="no"
                 allowFullScreen
-                allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+                allow="encrypted-media; autoplay *; fullscreen *; picture-in-picture *"
                 referrerPolicy="no-referrer"
                 style={{ pointerEvents: "auto" }}
               />
@@ -1610,7 +1738,7 @@ export default function StreamDashboard({
                       <div className="absolute bottom-0 left-2 right-2 h-[3px] overflow-hidden rounded-full bg-white/25">
                         <div
                           className="h-full rounded-full bg-[#e50914]"
-                          style={{ width: `${((idx * 7 + 40) % 80) + 20}%` }}
+                          style={{ width: `${progressFor(movie)}%` }}
                         />
                       </div>
                       <div className="absolute inset-0 bg-gradient-to-t from-[rgba(15,15,15,0.92)] via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
@@ -1801,6 +1929,14 @@ export default function StreamDashboard({
               <span className="text-[11px] uppercase tracking-[0.26em] text-[#6f6f6f]">
                 Desi Movies
               </span>
+              <a
+                href="https://www.vidy.st/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-auto rounded-[4px] text-[13px] text-[#b3b3b3] transition-colors hover:text-white"
+              >
+                Streaming API
+              </a>
             </div>
 
             <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-[13px] text-[#b3b3b3] sm:grid-cols-3 lg:grid-cols-4">
