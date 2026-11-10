@@ -306,7 +306,6 @@ export default function StreamDashboard({
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isNavbarBlack, setIsNavbarBlack] = useState(false);
   const [isPlayerOpen, setIsPlayerOpen] = useState(Boolean(initialPlayback));
   const [isMuted, setIsMuted] = useState(true);
   const [activeSection, setActiveSection] = useState<SectionKey>("home");
@@ -536,15 +535,6 @@ export default function StreamDashboard({
     window.addEventListener("message", handleVidyMessage);
     return () => window.removeEventListener("message", handleVidyMessage);
   }, [isPlayerOpen, activePositionKey]);
-
-  // Auto-scroll navbar effect
-  useEffect(() => {
-    const handleScroll = () => {
-      setIsNavbarBlack(window.scrollY > 50);
-    };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
 
   useEffect(() => {
     if (!initialPlayback) return;
@@ -1077,22 +1067,23 @@ export default function StreamDashboard({
         </div>
       )}
 
-      {/* Navbar */}
-      <nav
-        className={`fixed inset-x-0 top-0 z-[100] transition-all duration-500 ${
-          isNavbarBlack || isPlayerOpen
-            ? "bg-black/90 pb-4 backdrop-blur-xl"
-            : "bg-gradient-to-b from-black/80 via-black/30 to-transparent pb-8"
-        }`}
-      >
+      {/* Navbar — fully transparent, stays transparent while scrolling */}
+      <nav className="fixed inset-x-0 top-0 z-[100]">
         <div className="flex w-full items-center justify-between gap-3 px-4 pt-4 sm:px-6 md:px-10 lg:px-14">
           {/* Logo */}
           <button
             onClick={() => goToSection("home")}
             aria-label="DesiMovies home"
-            className="relative select-none font-[var(--font-heading)] text-[44px] leading-[0.75] tracking-tighter text-[#E50914] drop-shadow-[0_0_28px_rgba(229,9,20,0.55)] sm:text-[54px]"
+            className="relative shrink-0 select-none drop-shadow-[0_4px_18px_rgba(0,0,0,0.55)]"
           >
-            D
+            <Image
+              src="/desimovies-logo.png"
+              alt="DesiMovies"
+              width={200}
+              height={68}
+              priority
+              className="h-8 w-auto sm:h-9 lg:h-10"
+            />
           </button>
 
           <div className="flex items-center gap-2 sm:gap-3">
