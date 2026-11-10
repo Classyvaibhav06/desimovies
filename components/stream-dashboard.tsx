@@ -1082,7 +1082,7 @@ export default function StreamDashboard({
               width={200}
               height={68}
               priority
-              className="h-8 w-auto sm:h-9 lg:h-10"
+              className="h-9 w-auto sm:h-10 lg:h-12"
             />
           </button>
 
