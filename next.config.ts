@@ -27,6 +27,16 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "imgs.search.brave.com",
         pathname: "/**"
+      },
+      {
+        protocol: "https",
+        hostname: "s4.anilist.co",
+        pathname: "/**"
+      },
+      {
+        protocol: "https",
+        hostname: "cdn.anilist.co",
+        pathname: "/**"
       }
     ]
   },
@@ -42,7 +52,7 @@ const nextConfig: NextConfig = {
               "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://va.vercel-scripts.com",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
-              "img-src 'self' data: blob: https: https://image.tmdb.org https://assets.fanart.tv https://m.media-amazon.com https://images.unsplash.com https://imgs.search.brave.com",
+              "img-src 'self' data: blob: https: https://image.tmdb.org https://assets.fanart.tv https://m.media-amazon.com https://images.unsplash.com https://imgs.search.brave.com https://*.anilist.co",
               "media-src 'self' blob: https:",
               "frame-src 'self' blob: data: https: https://www.vidy.st https://vidy.st https://*.vidy.st https://users.vidy.st https://*.vidsrc.wiki https://vidsrc.wiki https://*.cinesrc.st https://cinesrc.st https://*.vidsrc.su https://vidsrc.su https://*.autoembed.co https://autoembed.co https://vidlink.pro https://*.vidlink.pro https://embed.su https://www.vidking.net https://vidsrc.me https://vidsrc.to https://vidsrc.xyz https://vidsrc-embed.ru https://vidsrc-embed.su https://vidsrcme.su https://vsrc.su https://dlhd.st https://*.dlhd.st https://www.youtube.com https://peachify.pro https://*.peachify.pro",
               "connect-src 'self' https://api.themoviedb.org https:",

@@ -14,6 +14,7 @@ import type {
 import { MovieCard, MovieRow } from "@/components/movie-card";
 import { backdropUrl, posterUrl } from "@/lib/media-urls";
 import {
+  buildVidyAnimeUrl,
   buildVidyUrl,
   isVidyOrigin,
   parseVidyPayload,
@@ -106,6 +107,8 @@ type InitialPlayback = {
   season?: number;
   episode?: number;
   sourceId?: string;
+  /** AniList id for anime titles. */
+  anilistId?: number;
 };
 
 type InitialDetail = {
@@ -148,8 +151,17 @@ function buildEmbedUrl(
   episode: number,
   sourceId: string = "vidy",
   progressSeconds: number = 0,
+  anilistId?: number,
 ): string {
   if (sourceId === "vidy") {
+    // Anime is keyed by AniList id (Vidy: /anime/{anilistId}/{episode})
+    if (anilistId) {
+      return buildVidyAnimeUrl({
+        anilistId,
+        episode,
+        progressSeconds,
+      });
+    }
     return buildVidyUrl({
       mediaType,
       tmdbId,
@@ -189,6 +201,7 @@ function buildWatchPath(
   season: number,
   episode: number,
   sourceId: string,
+  isAnime: boolean = false,
 ): string {
   const params = new URLSearchParams();
   if (mediaType === "tv") {
@@ -197,6 +210,9 @@ function buildWatchPath(
   }
   if (sourceId && sourceId !== "vidy") {
     params.set("source", sourceId);
+  }
+  if (isAnime) {
+    params.set("anime", "1");
   }
   const query = params.toString();
   return `/watch/${mediaType}/${tmdbId}${query ? `?${query}` : ""}`;
@@ -368,6 +384,7 @@ export default function StreamDashboard({
     initialPlayback?.sourceId ?? "vidy",
   );
   const [resumeAt, setResumeAt] = useState<number>(0);
+  const [selectedAnilistId, setSelectedAnilistId] = useState<number | null>(null);
   const [watchPositions, setWatchPositions] = useState<
     Record<string, { currentTime: number; duration: number; updatedAt: number }>
   >({});
@@ -544,6 +561,7 @@ export default function StreamDashboard({
     setSeason(initialPlayback.season ?? 1);
     setEpisode(initialPlayback.episode ?? 1);
     setSelectedSource(initialPlayback.sourceId ?? "vidy");
+    setSelectedAnilistId(initialPlayback.anilistId ?? null);
     setIsPlayerOpen(true);
 
     // Resume where the viewer left off (Vidy stores the position for us)
@@ -582,6 +600,38 @@ export default function StreamDashboard({
     setIsLoadingDetail(true);
 
     async function fetchInitialDetail() {
+      // Anime are keyed by AniList — TMDB would return the wrong title
+      const animeEntry = categories
+        .flatMap((category) => category.movies)
+        .find(
+          (movie) => movie.id === detail.id && typeof movie.anilistId === "number",
+        );
+
+      if (animeEntry) {
+        const anime = animeEntry as MovieSummary;
+        const animeResult: SearchResult = {
+          id: anime.id,
+          title: anime.title,
+          overview: anime.overview,
+          posterPath: anime.posterPath,
+          backdropPath: anime.backdropPath,
+          releaseDate: anime.releaseDate,
+          rating: anime.rating,
+          mediaType: "tv",
+          genres: [],
+          numberOfSeasons: 1,
+          seasons: [],
+          tagline: anime.format ?? "",
+          anilistId: anime.anilistId,
+          episodes: anime.episodes,
+        };
+        if (!isActive) return;
+        setDetailMovie(animeResult);
+        setDetailData(animeResult);
+        setIsLoadingDetail(false);
+        return;
+      }
+
       try {
         const res = await fetch(
           `/api/movies/details?id=${detail.id}&type=${detail.mediaType}&season=1`,
@@ -613,6 +663,7 @@ export default function StreamDashboard({
       season,
       episode,
       selectedSource,
+      Boolean(selectedAnilistId),
     );
     router.replace(nextPath);
   }, [
@@ -623,6 +674,7 @@ export default function StreamDashboard({
     season,
     episode,
     selectedSource,
+    selectedAnilistId,
     router,
   ]);
 
@@ -683,9 +735,10 @@ export default function StreamDashboard({
         episode,
         selectedSource,
         resumeAt,
+        selectedAnilistId ?? undefined,
       );
     },
-    [selectedMediaType, selectedMovieId, season, episode, selectedSource, selectedSportsChannel, selectedSportsSource, resumeAt],
+    [selectedMediaType, selectedMovieId, season, episode, selectedSource, selectedSportsChannel, selectedSportsSource, resumeAt, selectedAnilistId],
   );
 
   const heroList = useMemo(() => {
@@ -709,8 +762,9 @@ export default function StreamDashboard({
                 : activeSection === "anime"
                   ? (() => {
                       const anime = categories
+                        .filter((c) => c.key.startsWith("anime-"))
                         .flatMap((c) => c.movies)
-                        .filter((m) => m.genreIds?.includes(16));
+                        .filter((m) => m.anilistId);
                       return anime.length > 0
                         ? anime
                         : categories.flatMap((c) => c.movies);
@@ -906,7 +960,12 @@ export default function StreamDashboard({
     const nextSeason = movie.mediaType === "tv" ? (options?.season ?? 1) : 1;
     const nextEpisode = movie.mediaType === "tv" ? (options?.episode ?? 1) : 1;
     const nextSource = options?.sourceId ?? selectedSource;
+    const anilistId =
+      "anilistId" in movie && typeof movie.anilistId === "number"
+        ? movie.anilistId
+        : undefined;
 
+    setSelectedAnilistId(anilistId ?? null);
     setDetailMovie(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
 
@@ -931,6 +990,7 @@ export default function StreamDashboard({
         nextSeason,
         nextEpisode,
         nextSource,
+        Boolean(anilistId),
       ),
     );
   }
@@ -982,9 +1042,10 @@ export default function StreamDashboard({
       base = categories.filter((c) => c.mediaType === "movie");
     else if (activeSection === "anime")
       base = categories
+        .filter((category) => category.key.startsWith("anime-"))
         .map((category) => ({
           ...category,
-          movies: category.movies.filter((m) => m.genreIds?.includes(16)),
+          movies: category.movies.filter((m) => m.anilistId),
         }))
         .filter((c) => c.movies.length > 0);
     if (activeSection === "anime" && base.length === 0) {
@@ -1440,7 +1501,9 @@ export default function StreamDashboard({
                 </div>
               )}
 
-              {selectedMediaType === "tv" && !selectedSportsChannel && (
+              {selectedMediaType === "tv" &&
+                !selectedSportsChannel &&
+                !selectedAnilistId && (
                 <>
                   <div className="flex flex-col gap-1">
                     <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#6f6f6f]">

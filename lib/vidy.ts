@@ -58,6 +58,36 @@ export function buildVidyUrl({
   return `${VIDY_ORIGIN}${path}?${params.toString()}`;
 }
 
+/**
+ * Anime uses AniList ids: /anime/{anilistId}/{episode}
+ */
+export function buildVidyAnimeUrl({
+  anilistId,
+  episode = 1,
+  progressSeconds = 0,
+  autoplay = true,
+  episodeSelector = true,
+  nextEpisode = true,
+  accent = VIDY_ACCENT,
+}: {
+  anilistId: number;
+  episode?: number;
+  progressSeconds?: number;
+  autoplay?: boolean;
+  episodeSelector?: boolean;
+  nextEpisode?: boolean;
+  accent?: string;
+}): string {
+  const params = new URLSearchParams();
+  params.set("color", accent);
+  if (autoplay) params.set("autoplay", "true");
+  if (progressSeconds > 0) params.set("progress", String(Math.floor(progressSeconds)));
+  if (nextEpisode) params.set("nextEpisode", "true");
+  if (episodeSelector) params.set("episodeSelector", "true");
+
+  return `${VIDY_ORIGIN}/anime/${anilistId}/${episode}?${params.toString()}`;
+}
+
 /** Vidy posts JSON strings to window.parent. */
 export type VidyPayload = {
   event?: "timeupdate" | "play" | "pause" | "ended";

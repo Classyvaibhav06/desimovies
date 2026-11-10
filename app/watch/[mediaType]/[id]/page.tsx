@@ -5,7 +5,12 @@ const defaultMovieId = 1078605;
 
 type PageProps = {
   params: Promise<{ mediaType: string; id: string }>;
-  searchParams?: Promise<{ season?: string; episode?: string; source?: string }>;
+  searchParams?: Promise<{
+    season?: string;
+    episode?: string;
+    source?: string;
+    anime?: string;
+  }>;
 };
 
 function parseMediaType(value: string) {
@@ -26,18 +31,24 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
         ?.id ?? defaultMovieId;
 
     const { mediaType: rawMediaType, id: rawId } = await params;
-    const sp: { season?: string; episode?: string; source?: string } = searchParams ? await searchParams : {};
+    const sp: {
+      season?: string;
+      episode?: string;
+      source?: string;
+      anime?: string;
+    } = searchParams ? await searchParams : {};
     const mediaType = parseMediaType(rawMediaType);
     const id = parseNumber(rawId, firstMovieId);
     const season = parseNumber(sp.season, 1);
     const episode = parseNumber(sp.episode, 1);
     const sourceId = sp.source;
+    const anilistId = sp.anime === "1" ? id : undefined;
 
     return (
       <StreamDashboard
         categories={categories}
         fallbackMovieId={firstMovieId}
-        initialPlayback={{ id, mediaType, season, episode, sourceId }}
+        initialPlayback={{ id, mediaType, season, episode, sourceId, anilistId }}
       />
     );
   } catch (error) {

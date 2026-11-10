@@ -3,6 +3,11 @@ import {
   buildSearchVariants,
   scoreSearchResult,
 } from "./search-utils";
+import {
+  getPopularAnime,
+  getTrendingAnime,
+  type AnimeSummary,
+} from "./anilist";
 export type MovieSummary = {
   id: number;
   title: string;
@@ -13,6 +18,10 @@ export type MovieSummary = {
   rating: number;
   mediaType: "movie" | "tv";
   genreIds?: number[];
+  /** AniList id — anime are keyed by AniList, not TMDB. */
+  anilistId?: number;
+  episodes?: number;
+  format?: string;
 };
 
 export type CategoryWithMovies = {
@@ -34,6 +43,9 @@ export type SearchResult = {
   genres?: string[];
   runtime?: number;
   tagline?: string;
+  /** AniList id — anime are keyed by AniList, not TMDB. */
+  anilistId?: number;
+  episodes?: number;
   numberOfSeasons?: number;
   seasons?: Array<{
     seasonNumber: number;
@@ -310,6 +322,22 @@ function getFallbackMovies(categoryKey: string, mediaType: "movie" | "tv"): Movi
   }));
 }
 
+function toMovieSummaryFromAnime(anime: AnimeSummary): MovieSummary {
+  return {
+    id: anime.anilistId,
+    title: anime.title,
+    overview: anime.overview,
+    posterPath: anime.posterPath,
+    backdropPath: anime.backdropPath,
+    releaseDate: anime.releaseDate,
+    rating: anime.rating,
+    mediaType: "tv",
+    anilistId: anime.anilistId,
+    episodes: anime.episodes,
+    format: anime.format,
+  };
+}
+
 async function fetchTmdb(endpoint: string, mediaType: "movie" | "tv"): Promise<MovieSummary[]> {
   const authConfig = getTmdbAuthConfig();
   let url = `${TMDB_BASE_URL}${endpoint}`;
@@ -347,6 +375,23 @@ export async function getCategoryMovies(): Promise<CategoryWithMovies[]> {
       };
     }
   }));
+
+  // Anime comes from AniList (Vidy plays anime by AniList id)
+  const animeCategories = await Promise.all([
+    getPopularAnime(16).then((anime) => ({
+      key: "anime-popular",
+      label: "Popular Anime",
+      mediaType: "tv" as const,
+      movies: anime.map(toMovieSummaryFromAnime),
+    })),
+    getTrendingAnime(16).then((anime) => ({
+      key: "anime-trending",
+      label: "Trending Anime",
+      mediaType: "tv" as const,
+      movies: anime.map(toMovieSummaryFromAnime),
+    })),
+  ]);
+  rawCategories.push(...animeCategories);
 
   // Filter out duplicates across categories so every row showcases unique recommendations
   return rawCategories.map((category) => {
