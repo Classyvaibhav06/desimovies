@@ -3,6 +3,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import type {
@@ -1920,46 +1921,34 @@ export default function StreamDashboard({
               <span className="text-[11px] uppercase tracking-[0.26em] text-[#6f6f6f]">
                 Desi Movies
               </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-[13px] text-[#b3b3b3]">
+              {[
+                { href: "/help", label: "Get help" },
+                { href: "/legal/terms", label: "Terms" },
+                { href: "/legal/privacy", label: "Privacy" },
+                { href: "/legal/dmca", label: "DMCA" },
+              ].map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="rounded-[4px] transition-colors duration-200 hover:text-white"
+                >
+                  {item.label}
+                </Link>
+              ))}
               <a
                 href="https://www.vidy.st/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="ml-auto rounded-[4px] text-[13px] text-[#b3b3b3] transition-colors hover:text-white"
+                className="rounded-[4px] transition-colors duration-200 hover:text-white"
               >
-                Streaming API
+                API
               </a>
             </div>
 
-            <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-[13px] text-[#b3b3b3] sm:grid-cols-3 lg:grid-cols-4">
-              {[
-                "Audio and Subtitles",
-                "Audio Description",
-                "Help Center",
-                "Gift Cards",
-                "Media Center",
-                "Investor Relations",
-                "Jobs",
-                "Terms of Use",
-                "Privacy",
-                "Legal Notices",
-                "Cookie Preferences",
-                "Corporate Information",
-                "Contact Us",
-              ].map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  className="text-left transition-colors duration-200 hover:text-[#f2f2f2]"
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-
             <div className="mt-8 flex flex-wrap items-center gap-4">
-              <button className="rounded border border-white/20 px-3 py-1.5 text-xs text-[#b3b3b3] transition-colors hover:border-white/50 hover:text-[#f2f2f2]">
-                Service Code
-              </button>
               <p className="text-[11px] text-[#6f6f6f]">
                 © 2026 DesiMovies. All rights reserved.
               </p>
