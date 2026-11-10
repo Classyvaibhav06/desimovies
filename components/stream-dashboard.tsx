@@ -12,9 +12,9 @@ import type {
 } from "@/lib/tmdb";
 import {
   Play,
+  Pause,
   Info,
   Search as SearchIcon,
-  Bell,
   User,
   X,
   ChevronRight,
@@ -22,6 +22,13 @@ import {
   Volume2,
   VolumeX,
   Loader2,
+  Home as HomeIcon,
+  Clapperboard,
+  Tv as TvIcon,
+  Sparkles,
+  Menu,
+  MoreHorizontal,
+  Star,
 } from "lucide-react";
 
 type StreamDashboardProps = {
@@ -32,6 +39,55 @@ type StreamDashboardProps = {
 };
 
 type MediaType = "movie" | "tv";
+
+type SectionKey =
+  | "home"
+  | "tv"
+  | "movies"
+  | "anime"
+  | "new-popular"
+  | "my-list"
+  | "categories"
+  | "sports";
+
+const GENRE_NAMES: Record<number, string> = {
+  28: "Action",
+  12: "Adventure",
+  16: "Animation",
+  35: "Comedy",
+  80: "Crime",
+  99: "Documentary",
+  18: "Drama",
+  10751: "Family",
+  14: "Fantasy",
+  36: "History",
+  27: "Horror",
+  10402: "Music",
+  9648: "Mystery",
+  10749: "Romance",
+  878: "Sci-Fi",
+  53: "Thriller",
+  10752: "War",
+  37: "Western",
+  10759: "Action & Adventure",
+  10762: "Kids",
+  10765: "Sci-Fi & Fantasy",
+  10768: "War & Politics",
+};
+
+const PRIMARY_NAV = [
+  { key: "home", label: "Home", icon: HomeIcon },
+  { key: "movies", label: "Movies", icon: Clapperboard },
+  { key: "tv", label: "Shows", icon: TvIcon },
+  { key: "anime", label: "Anime", icon: Sparkles },
+] as const;
+
+const MORE_NAV = [
+  { key: "new-popular", label: "New & Popular" },
+  { key: "categories", label: "Categories" },
+  { key: "my-list", label: "My List" },
+  { key: "sports", label: "Live Sports" },
+] as const;
 
 type InitialPlayback = {
   id: number;
@@ -239,10 +295,11 @@ export default function StreamDashboard({
   const [isNavbarBlack, setIsNavbarBlack] = useState(false);
   const [isPlayerOpen, setIsPlayerOpen] = useState(Boolean(initialPlayback));
   const [isMuted, setIsMuted] = useState(true);
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [activeSection, setActiveSection] = useState<
-    "home" | "tv" | "movies" | "new-popular" | "my-list" | "categories" | "sports"
-  >("home");
+  const [activeSection, setActiveSection] = useState<SectionKey>("home");
+  const [heroIndex, setHeroIndex] = useState(0);
+  const [isHeroPaused, setIsHeroPaused] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [selectedCategoryKey, setSelectedCategoryKey] = useState<string | null>(
     null,
   );
@@ -300,6 +357,7 @@ export default function StreamDashboard({
   const searchClientCacheRef = useRef<Map<string, SearchResult[]>>(new Map());
   const searchAbortControllerRef = useRef<AbortController | null>(null);
   const searchDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const moreNavRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const handleTouch = () => {};
@@ -544,8 +602,8 @@ export default function StreamDashboard({
     [selectedMediaType, selectedMovieId, season, episode, selectedSource, selectedSportsChannel, selectedSportsSource],
   );
 
-  const heroMovie = useMemo(() => {
-    const list =
+  const heroList = useMemo(() => {
+    const pool =
       activeSection === "my-list"
         ? myList
         : activeSection === "categories"
@@ -562,24 +620,97 @@ export default function StreamDashboard({
                 ? categories
                   .filter((c) => c.mediaType === "movie")
                   .flatMap((c) => c.movies)
-                : categories
-                  .filter((c) =>
-                    ["new-movies", "new-tv", "upcoming", "trending"].includes(
-                      c.key,
-                    ),
-                  )
-                  .flatMap((c) => c.movies);
+                : activeSection === "anime"
+                  ? (() => {
+                      const anime = categories
+                        .flatMap((c) => c.movies)
+                        .filter((m) => m.genreIds?.includes(16));
+                      return anime.length > 0
+                        ? anime
+                        : categories.flatMap((c) => c.movies);
+                    })()
+                  : categories
+                    .filter((c) =>
+                      ["new-movies", "new-tv", "upcoming", "trending"].includes(
+                        c.key,
+                      ),
+                    )
+                    .flatMap((c) => c.movies);
 
-    // Try to find "The Boys" or a prominent item in the list
-    const featured = list.find(
-      (m) =>
-        m.title.toLowerCase().includes("boys") ||
-        m.title.toLowerCase().includes("inception") ||
-        m.title.toLowerCase().includes("dark"),
-    );
-    if (featured) return featured;
-    return list[0];
+    const withBackdrop = pool.filter((m) => m.backdropPath || m.posterPath);
+    const seen = new Set<string>();
+    return withBackdrop
+      .filter((m) => {
+        const key = `${m.mediaType}-${m.id}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 6);
   }, [categories, activeSection, myList, selectedCategoryKey]);
+
+  const heroMovie = heroList[heroIndex % Math.max(heroList.length, 1)];
+
+  const heroGenres = useMemo<string[]>(() => {
+    if (!heroMovie) return [];
+    if ("genres" in heroMovie && heroMovie.genres?.length)
+      return heroMovie.genres.slice(0, 2);
+    const genreIds = "genreIds" in heroMovie ? heroMovie.genreIds ?? [] : [];
+    return genreIds
+      .map((id) => GENRE_NAMES[id])
+      .filter((name): name is string => Boolean(name))
+      .slice(0, 2);
+  }, [heroMovie]);
+
+  useEffect(() => {
+    setHeroIndex(0);
+  }, [activeSection, selectedCategoryKey]);
+
+  useEffect(() => {
+    if (isHeroPaused || isPlayerOpen || heroList.length < 2 || activeSection === "sports") {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setHeroIndex((prev) => (prev + 1) % heroList.length);
+    }, 9000);
+    return () => window.clearInterval(timer);
+  }, [isHeroPaused, isPlayerOpen, heroList.length, activeSection]);
+
+  function goToSection(section: SectionKey) {
+    setActiveSection(section);
+    closePlayer();
+    setSelectedGenre(null);
+    setIsMobileMenuOpen(false);
+    setIsMoreOpen(false);
+    if (section === "categories") {
+      setSelectedCategoryKey((prev) => prev ?? categories[0]?.key ?? null);
+    } else {
+      setSelectedCategoryKey(null);
+    }
+  }
+
+  useEffect(() => {
+    if (!isMoreOpen) return;
+
+    function handlePointerDown(event: MouseEvent | TouchEvent) {
+      const target = event.target as Node | null;
+      if (target && moreNavRef.current?.contains(target)) return;
+      setIsMoreOpen(false);
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setIsMoreOpen(false);
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isMoreOpen]);
 
   function handleSearch(q: string) {
     setSearchQuery(q);
@@ -757,6 +888,23 @@ export default function StreamDashboard({
       base = categories.filter((c) => c.mediaType === "tv");
     else if (activeSection === "movies")
       base = categories.filter((c) => c.mediaType === "movie");
+    else if (activeSection === "anime")
+      base = categories
+        .map((category) => ({
+          ...category,
+          movies: category.movies.filter((m) => m.genreIds?.includes(16)),
+        }))
+        .filter((c) => c.movies.length > 0);
+    if (activeSection === "anime" && base.length === 0) {
+      base = [
+        {
+          key: "anime",
+          label: "Anime",
+          mediaType: "movie" as const,
+          movies: [],
+        },
+      ];
+    }
     else if (activeSection === "new-popular")
       base = categories.filter((c) =>
         ["new-movies", "new-tv", "upcoming", "trending"].includes(c.key),
@@ -801,12 +949,12 @@ export default function StreamDashboard({
       <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_20%_10%,rgba(255,120,80,0.16),transparent_40%),radial-gradient(circle_at_80%_0%,rgba(249,115,22,0.12),transparent_35%)]" />
       <div className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(130deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0)_35%)]" />
       {showIntroPopup && (
-        <div className="pointer-events-none fixed right-3 top-3 z-[200] sm:right-4 sm:top-4">
-          <div className="rounded-xl border border-white/20 bg-zinc-900/95 px-4 py-3 text-left shadow-2xl">
-            <p className="text-sm font-bold uppercase tracking-wide text-[#E50914] sm:text-base">
+        <div className="pointer-events-none fixed bottom-4 left-4 z-[200] sm:bottom-6 sm:left-6">
+          <div className="rounded-xl border border-white/10 bg-black/60 px-4 py-2.5 text-left shadow-2xl backdrop-blur-xl">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#E50914] sm:text-sm">
               desi media
             </p>
-            <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-white/75 sm:text-xs sm:tracking-[0.24em]">
+            <p className="mt-1 text-[9px] uppercase tracking-[0.26em] text-white/60 sm:text-[10px]">
               made by vaibhav ghoshi
             </p>
           </div>
@@ -815,327 +963,295 @@ export default function StreamDashboard({
 
       {/* Navbar */}
       <nav
-        className={`fixed top-0 z-[100] w-full px-3 py-3 transition-all duration-500 md:px-12 md:py-4 ${isNavbarBlack || isPlayerOpen ? "bg-[#141414]/95 backdrop-blur-md shadow-2xl" : "bg-transparent bg-gradient-to-b from-black/80 to-transparent"}`}
+        className={`fixed inset-x-0 top-0 z-[100] transition-all duration-500 ${
+          isNavbarBlack || isPlayerOpen
+            ? "bg-black/90 pb-4 backdrop-blur-xl"
+            : "bg-gradient-to-b from-black/80 via-black/30 to-transparent pb-8"
+        }`}
       >
-        <div className="flex items-center justify-between gap-2 sm:gap-3">
-          <div className="flex items-center gap-2 sm:gap-8">
-            <div className="flex flex-col leading-none">
-              <div className="text-2xl font-black tracking-tighter text-[#E50914] sm:text-3xl">
-                desi_movies
-              </div>
-              <div className="mt-1 whitespace-nowrap text-[7px] font-medium uppercase tracking-[0.18em] text-white/60 max-[380px]:hidden sm:text-[10px] sm:tracking-[0.3em]">
-                made by vaibhav ghoshi
-              </div>
-            </div>
-            <div className="hidden items-center gap-5 text-sm font-medium text-gray-200 lg:flex">
-              <button
-                onClick={() => {
-                  setActiveSection("home");
-                  closePlayer();
-                  setSelectedGenre(null);
-                }}
-                className={`transition-colors hover:text-gray-300 ${activeSection === "home" ? "text-white font-bold" : "text-gray-400"}`}
-              >
-                Home
-              </button>
-              <button
-                onClick={() => {
-                  setActiveSection("tv");
-                  closePlayer();
-                  setSelectedGenre(null);
-                }}
-                className={`transition-colors hover:text-gray-300 ${activeSection === "tv" ? "text-white font-bold" : "text-gray-400"}`}
-              >
-                TV Shows
-              </button>
-              <button
-                onClick={() => {
-                  setActiveSection("movies");
-                  closePlayer();
-                  setSelectedGenre(null);
-                }}
-                className={`transition-colors hover:text-gray-300 ${activeSection === "movies" ? "text-white font-bold" : "text-gray-400"}`}
-              >
-                Movies
-              </button>
-              <button
-                onClick={() => {
-                  setActiveSection("new-popular");
-                  closePlayer();
-                  setSelectedGenre(null);
-                  setSelectedCategoryKey(null);
-                }}
-                className={`transition-colors hover:text-gray-300 ${activeSection === "new-popular" ? "text-white font-bold" : "text-gray-400"}`}
-              >
-                New &amp; Popular
-              </button>
-              <button
-                onClick={() => {
-                  setActiveSection("categories");
-                  closePlayer();
-                  setSelectedGenre(null);
-                  setSelectedCategoryKey(
-                    (prev) => prev ?? categories[0]?.key ?? null,
-                  );
-                }}
-                className={`transition-colors hover:text-gray-300 ${activeSection === "categories" ? "text-white font-bold" : "text-gray-400"}`}
-              >
-                Categories
-              </button>
-              <button
-                onClick={() => {
-                  setActiveSection("my-list");
-                  closePlayer();
-                  setSelectedGenre(null);
-                  setSelectedCategoryKey(null);
-                }}
-                className={`transition-colors hover:text-gray-300 ${activeSection === "my-list" ? "text-white font-bold" : "text-gray-400"}`}
-              >
-                My List{" "}
-                {myList.length > 0 && (
-                  <span className="ml-1 rounded-full bg-red-600 px-1.5 py-0.5 text-[9px] font-bold">
-                    {myList.length}
-                  </span>
-                )}
-              </button>
-              <button
-                onClick={() => {
-                  setActiveSection("sports");
-                  closePlayer();
-                  setSelectedGenre(null);
-                  setSelectedCategoryKey(null);
-                }}
-                className={`transition-colors hover:text-gray-300 ${activeSection === "sports" ? "text-white font-bold" : "text-gray-400"}`}
-              >
-                Live Sports
-                <span className="ml-1.5 inline-flex items-center rounded bg-red-600 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-white animate-pulse">
-                  Live
-                </span>
-              </button>
-            </div>
-          </div>
+        <div className="flex w-full items-center justify-between gap-3 px-4 pt-4 sm:px-6 md:px-10 lg:px-14">
+          {/* Logo */}
+          <button
+            onClick={() => goToSection("home")}
+            aria-label="DesiMovies home"
+            className="relative select-none font-[var(--font-heading)] text-[44px] leading-[0.75] tracking-tighter text-[#E50914] drop-shadow-[0_0_28px_rgba(229,9,20,0.55)] sm:text-[54px]"
+          >
+            D
+          </button>
 
-          <div className="flex items-center gap-2 text-white sm:gap-4 md:gap-6">
-            <div
-              className={`flex items-center gap-2 border border-white/40 bg-black/40 px-2 py-1 transition-all ${isSearchOpen ? "w-[min(16rem,52vw)] opacity-100 sm:w-64" : "w-9 overflow-hidden sm:w-10"}`}
-            >
-              <SearchIcon
-                className="h-4 w-4 cursor-pointer shrink-0 sm:h-5 sm:w-5"
-                onClick={() => setIsSearchOpen(!isSearchOpen)}
-              />
-              <input
-                type="text"
-                placeholder="Titles, genres, or TMDB ID"
-                className="w-full bg-transparent text-xs outline-none sm:text-sm"
-                value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
-              />
-              {searchQuery && (
-                <X
-                  className="h-4 w-4 cursor-pointer"
-                  onClick={() => setSearchQuery("")}
-                />
-              )}
-            </div>
-            <div className="flex items-center gap-2 sm:gap-4">
-              <select
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-                className="hidden bg-transparent text-xs text-gray-400 outline-none border border-white/20 px-1 py-0.5 transition-colors hover:text-white sm:block"
-              >
-                <option value="en-US" className="bg-[#141414]">
-                  English
-                </option>
-                <option value="hi-IN" className="bg-[#141414]">
-                  हिन्दी (Hindi)
-                </option>
-              </select>
-              <Bell className="hidden h-5 w-5 cursor-pointer transition-colors hover:text-gray-300 sm:block" />
-              <div className="relative">
-                <div
-                  className="flex items-center gap-2 cursor-pointer group"
-                  onClick={() => setIsProfileOpen(!isProfileOpen)}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Desktop pill nav */}
+            <div className="hidden items-center gap-0.5 rounded-full border border-white/[0.08] bg-[#0c0c0c]/85 p-1.5 shadow-[0_18px_55px_rgba(0,0,0,0.75)] backdrop-blur-2xl md:flex">
+              {PRIMARY_NAV.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeSection === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    onClick={() => goToSection(item.key)}
+                    className={`flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-medium transition-all duration-300 ${
+                      isActive
+                        ? "bg-white/[0.09] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.09)]"
+                        : "text-zinc-400 hover:bg-white/5 hover:text-white"
+                    }`}
+                  >
+                    <Icon className="h-[15px] w-[15px]" strokeWidth={2} />
+                    {item.label}
+                  </button>
+                );
+              })}
+
+              {/* More sections */}
+              <div className="relative" ref={moreNavRef}>
+                <button
+                  onClick={() => setIsMoreOpen((prev) => !prev)}
+                  aria-label="More sections"
+                  className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
+                    isMoreOpen || MORE_NAV.some((item) => item.key === activeSection)
+                      ? "bg-white/[0.09] text-white"
+                      : "text-zinc-400 hover:bg-white/5 hover:text-white"
+                  }`}
                 >
-                  <div className="h-8 w-8 overflow-hidden rounded bg-blue-500 group-hover:ring-2 group-hover:ring-white transition-all">
-                    <User className="h-full w-full p-1" />
-                  </div>
-                  <div
-                    className={`hidden border-l-4 border-r-4 border-t-4 border-transparent border-t-white transition-transform duration-300 sm:block ${isProfileOpen ? "rotate-180" : ""}`}
-                  />
-                </div>
-
-                {isProfileOpen && (
-                  <div className="absolute right-0 mt-4 w-48 bg-black/95 border border-white/10 py-2 shadow-2xl backdrop-blur-md">
-                    <div className="absolute -top-2 right-4 h-0 w-0 border-l-8 border-r-8 border-b-8 border-l-transparent border-r-transparent border-b-white/10" />
-                    <div className="px-4 py-2 flex items-center gap-3 border-b border-white/10 hover:bg-white/5 cursor-pointer">
-                      <div className="h-8 w-8 rounded bg-red-600 flex items-center justify-center text-[10px] font-bold">
-                        KIDS
-                      </div>
-                      <span className="text-xs font-medium">Kids Profile</span>
+                  <MoreHorizontal className="h-4 w-4" />
+                </button>
+                {isMoreOpen && (
+                  <>
+                    <div className="absolute right-0 top-[calc(100%+14px)] w-56 overflow-hidden rounded-2xl border border-white/10 bg-[#0d0d0d]/97 p-1.5 shadow-[0_25px_70px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
+                      {MORE_NAV.map((item) => (
+                        <button
+                          key={item.key}
+                          onClick={() => goToSection(item.key)}
+                          className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[13px] font-medium transition-colors ${
+                            activeSection === item.key
+                              ? "bg-white/[0.08] text-white"
+                              : "text-zinc-400 hover:bg-white/5 hover:text-white"
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">
+                            {item.label}
+                            {item.key === "sports" && (
+                              <span className="rounded bg-red-600 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-white">
+                                Live
+                              </span>
+                            )}
+                          </span>
+                          {item.key === "my-list" && myList.length > 0 && (
+                            <span className="rounded-full bg-red-600 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                              {myList.length}
+                            </span>
+                          )}
+                        </button>
+                      ))}
                     </div>
-                    <button className="w-full text-left px-4 py-2 text-[11px] font-medium hover:underline">
-                      Manage Profiles
-                    </button>
-                    <div className="border-t border-white/10 mt-2 pt-2">
-                      <button className="w-full text-left px-4 py-2 text-[11px] font-medium hover:underline">
-                        Account
-                      </button>
-                      <button className="w-full text-left px-4 py-2 text-[11px] font-medium hover:underline">
-                        Help Center
-                      </button>
-                      <button className="w-full text-left px-4 py-2 text-[11px] font-bold hover:underline mt-2">
-                        Sign Out of desimaovies
-                      </button>
-                    </div>
-                  </div>
+                  </>
                 )}
               </div>
+
+              <span className="mx-1.5 h-6 w-px bg-white/10" />
+
+              {/* Search */}
+              <div
+                className={`flex items-center rounded-full transition-all duration-300 ${
+                  isSearchOpen ? "bg-white/[0.07] pl-3" : ""
+                }`}
+              >
+                {isSearchOpen && (
+                  <>
+                    <SearchIcon className="h-4 w-4 shrink-0 text-zinc-400" />
+                    <input
+                      autoFocus
+                      type="text"
+                      placeholder="Search titles, genres..."
+                      className="w-40 bg-transparent px-2 py-2 text-[13px] text-white placeholder:text-zinc-500 focus:outline-none lg:w-52"
+                      value={searchQuery}
+                      onChange={(e) => handleSearch(e.target.value)}
+                    />
+                  </>
+                )}
+                <button
+                  onClick={() => {
+                    setIsSearchOpen((prev) => !prev);
+                    if (isSearchOpen) setSearchQuery("");
+                  }}
+                  aria-label="Search"
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-300 transition-colors hover:bg-white/5 hover:text-white"
+                >
+                  {isSearchOpen ? (
+                    <X className="h-4 w-4" />
+                  ) : (
+                    <SearchIcon className="h-[18px] w-[18px]" />
+                  )}
+                </button>
+              </div>
+
+              {/* Account */}
+              <button
+                aria-label="Account"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-300 transition-colors hover:bg-white/5 hover:text-white"
+              >
+                <User className="h-[18px] w-[18px]" />
+              </button>
+            </div>
+
+            {/* Mobile actions */}
+            <div className="flex items-center gap-1 md:hidden">
+              <button
+                onClick={() => {
+                  setIsSearchOpen((prev) => !prev);
+                  if (isSearchOpen) setSearchQuery("");
+                }}
+                aria-label="Search"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/50 text-zinc-200 backdrop-blur-xl"
+              >
+                {isSearchOpen ? (
+                  <X className="h-[18px] w-[18px]" />
+                ) : (
+                  <SearchIcon className="h-[18px] w-[18px]" />
+                )}
+              </button>
+              <button
+                onClick={() => setIsMobileMenuOpen(true)}
+                aria-label="Open menu"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/50 text-zinc-200 backdrop-blur-xl"
+              >
+                <Menu className="h-[18px] w-[18px]" />
+              </button>
             </div>
           </div>
         </div>
 
-        <div className="no-scrollbar mt-3 flex items-center gap-2 overflow-x-auto pb-1 text-xs font-medium text-gray-200 lg:hidden">
-          <button
-            onClick={() => {
-              setActiveSection("home");
-              closePlayer();
-              setSelectedGenre(null);
-            }}
-            className={`whitespace-nowrap rounded-full border px-3 py-1.5 transition-colors ${activeSection === "home" ? "border-white bg-white text-black" : "border-white/20 bg-black/35 text-gray-200"}`}
-          >
-            Home
-          </button>
-          <button
-            onClick={() => {
-              setActiveSection("tv");
-              closePlayer();
-              setSelectedGenre(null);
-            }}
-            className={`whitespace-nowrap rounded-full border px-3 py-1.5 transition-colors ${activeSection === "tv" ? "border-white bg-white text-black" : "border-white/20 bg-black/35 text-gray-200"}`}
-          >
-            TV Shows
-          </button>
-          <button
-            onClick={() => {
-              setActiveSection("movies");
-              closePlayer();
-              setSelectedGenre(null);
-            }}
-            className={`whitespace-nowrap rounded-full border px-3 py-1.5 transition-colors ${activeSection === "movies" ? "border-white bg-white text-black" : "border-white/20 bg-black/35 text-gray-200"}`}
-          >
-            Movies
-          </button>
-          <button
-            onClick={() => {
-              setActiveSection("new-popular");
-              closePlayer();
-              setSelectedGenre(null);
-              setSelectedCategoryKey(null);
-            }}
-            className={`whitespace-nowrap rounded-full border px-3 py-1.5 transition-colors ${activeSection === "new-popular" ? "border-white bg-white text-black" : "border-white/20 bg-black/35 text-gray-200"}`}
-          >
-            New &amp; Popular
-          </button>
-          <button
-            onClick={() => {
-              setActiveSection("categories");
-              closePlayer();
-              setSelectedGenre(null);
-              setSelectedCategoryKey(
-                (prev) => prev ?? categories[0]?.key ?? null,
-              );
-            }}
-            className={`whitespace-nowrap rounded-full border px-3 py-1.5 transition-colors ${activeSection === "categories" ? "border-white bg-white text-black" : "border-white/20 bg-black/35 text-gray-200"}`}
-          >
-            Categories
-          </button>
-          <button
-            onClick={() => {
-              setActiveSection("my-list");
-              closePlayer();
-              setSelectedGenre(null);
-              setSelectedCategoryKey(null);
-            }}
-            className={`whitespace-nowrap rounded-full border px-3 py-1.5 transition-colors ${activeSection === "my-list" ? "border-white bg-white text-black" : "border-white/20 bg-black/35 text-gray-200"}`}
-          >
-            My List {myList.length > 0 ? `(${myList.length})` : ""}
-          </button>
-          <button
-            onClick={() => {
-              setActiveSection("sports");
-              closePlayer();
-              setSelectedGenre(null);
-              setSelectedCategoryKey(null);
-            }}
-            className={`whitespace-nowrap rounded-full border px-3 py-1.5 transition-colors ${activeSection === "sports" ? "border-white bg-white text-black" : "border-white/20 bg-black/35 text-gray-200"}`}
-          >
-            Live Sports
-          </button>
-        </div>
+        {/* Mobile search bar */}
+        {isSearchOpen && (
+          <div className="px-4 pt-3 md:hidden">
+            <input
+              autoFocus
+              type="text"
+              placeholder="Search titles, genres..."
+              className="w-full rounded-full border border-white/10 bg-black/60 px-4 py-2.5 text-sm text-white placeholder:text-zinc-500 backdrop-blur-xl focus:outline-none focus:ring-1 focus:ring-white/20"
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+            />
+          </div>
+        )}
+      </nav>
 
-        {activeSection === "categories" && categoryNavItems.length > 0 && (
-          <div className="no-scrollbar mt-3 overflow-x-auto pb-1">
-            <div className="flex min-w-max items-center gap-2 rounded-2xl border border-white/10 bg-black/40 p-2 backdrop-blur-md">
+      {/* Mobile menu */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 z-[110] md:hidden">
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+          <div className="absolute right-3 top-3 w-[min(20rem,calc(100vw-1.5rem))] overflow-hidden rounded-3xl border border-white/10 bg-[#0c0c0c]/97 p-2 shadow-[0_30px_80px_rgba(0,0,0,0.9)] backdrop-blur-2xl">
+            <div className="flex items-center justify-between px-3 py-2">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
+                Browse
+              </span>
+              <button
+                onClick={() => setIsMobileMenuOpen(false)}
+                aria-label="Close menu"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 hover:bg-white/5 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-0.5">
+              {[...PRIMARY_NAV, ...MORE_NAV].map((item) => {
+                const Icon = "icon" in item ? item.icon : null;
+                const isActive = activeSection === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    onClick={() => goToSection(item.key)}
+                    className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm font-medium transition-colors ${
+                      isActive
+                        ? "bg-white/[0.09] text-white"
+                        : "text-zinc-400 hover:bg-white/5 hover:text-white"
+                    }`}
+                  >
+                    {Icon ? (
+                      <Icon className="h-4 w-4 shrink-0" />
+                    ) : (
+                      <span className="h-4 w-4 shrink-0" />
+                    )}
+                    <span className="flex-1">{item.label}</span>
+                    {"key" in item && item.key === "sports" && (
+                      <span className="rounded bg-red-600 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-white">
+                        Live
+                      </span>
+                    )}
+                    {item.key === "my-list" && myList.length > 0 && (
+                      <span className="rounded-full bg-red-600 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                        {myList.length}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-2 border-t border-white/10 px-3 py-3">
+              <p className="font-[var(--font-heading)] text-lg leading-none text-[#E50914]">
+                DESI MOVIES
+              </p>
+              <p className="mt-1 text-[9px] uppercase tracking-[0.3em] text-white/40">
+                made by vaibhav ghoshi
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Category chips */}
+      {activeSection === "categories" && categoryNavItems.length > 0 && (
+        <div className="fixed left-0 right-0 top-[76px] z-[90] px-4 md:px-10 lg:px-14">
+          <div className="no-scrollbar overflow-x-auto pb-1">
+            <div className="flex min-w-max items-center gap-2 rounded-2xl border border-white/10 bg-black/50 p-2 backdrop-blur-md">
               {categoryNavItems.map((item) => {
                 const isActive = selectedCategoryKey === item.key;
                 return (
                   <button
                     key={item.key}
                     onClick={() => setSelectedCategoryKey(item.key)}
-                    className={`group/category rounded-xl border px-3 py-2 text-left transition-all duration-300 ${isActive
-                      ? "border-rose-400/80 bg-gradient-to-br from-rose-500/30 to-amber-400/20 text-white shadow-lg shadow-rose-700/20"
-                      : "border-white/10 bg-white/5 text-gray-200 hover:border-white/40 hover:bg-white/10"
-                      }`}
+                    className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition-all duration-300 ${
+                      isActive
+                        ? "border-white/30 bg-white text-black"
+                        : "border-white/10 bg-white/5 text-gray-300 hover:border-white/30 hover:text-white"
+                    }`}
                   >
-                    <p className="text-[11px] font-semibold uppercase tracking-wide">
-                      {item.label}
-                    </p>
-                    <p className="mt-0.5 text-[10px] text-gray-300 group-hover/category:text-white/90">
-                      {item.mediaType === "tv" ? "TV Shows" : "Movies"} •{" "}
-                      {item.count}
-                    </p>
+                    {item.label}
                   </button>
                 );
               })}
             </div>
           </div>
-        )}
-      </nav>
+        </div>
+      )}
+
 
       {/* Hero Banner / Player Overlay */}
-      <section className="relative h-[82vh] w-full pt-8 sm:h-[85vh] lg:h-[95vh] lg:pt-0">
-        {/* Section Title & Genre Filter for Movies/TV */}
+      <section className="relative h-[88vh] w-full overflow-hidden pt-12 sm:h-[92vh] lg:h-screen lg:pt-0">
+        {/* Genre filter for Movies/TV */}
         {!isPlayerOpen &&
-          (activeSection === "movies" ||
-            activeSection === "tv" ||
-            activeSection === "categories") && (
-            <div className="absolute left-4 top-32 z-[45] flex items-center gap-3 sm:top-24 sm:gap-6 md:left-12">
-              <h2 className="text-2xl font-bold text-white capitalize sm:text-3xl">
-                {activeSection === "categories"
-                  ? (categoryNavItems.find(
-                    (item) => item.key === selectedCategoryKey,
-                  )?.label ?? "Categories")
-                  : activeSection}
-              </h2>
-              {(activeSection === "movies" || activeSection === "tv") && (
-                <div className="relative">
-                  <select
-                    value={selectedGenre || ""}
-                    onChange={(e) => setSelectedGenre(e.target.value || null)}
-                    className="appearance-none rounded-sm border border-white/40 bg-black px-3 py-1 pr-8 text-xs font-bold text-white transition-colors hover:bg-zinc-900 sm:px-4 sm:pr-10 sm:text-sm"
-                  >
-                    <option value="">Genres</option>
-                    {GENRES.map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {g.name}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-white">
-                    <div className="h-0 w-0 border-l-[4px] border-r-[4px] border-t-[6px] border-l-transparent border-r-transparent border-t-white" />
-                  </div>
+          (activeSection === "movies" || activeSection === "tv") && (
+            <div className="absolute left-4 top-[78px] z-[45] md:left-12 lg:left-14">
+              <div className="relative">
+                <select
+                  value={selectedGenre || ""}
+                  onChange={(e) => setSelectedGenre(e.target.value || null)}
+                  aria-label="Filter by genre"
+                  className="appearance-none rounded-full border border-white/10 bg-black/55 py-1.5 pl-3.5 pr-8 text-[11px] font-semibold uppercase tracking-wider text-white/85 backdrop-blur-xl transition-colors hover:border-white/30 focus:border-white/40 focus:outline-none"
+                >
+                  <option value="">All genres</option>
+                  {GENRES.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-white/70">
+                  <div className="h-0 w-0 border-l-[4px] border-r-[4px] border-t-[6px] border-l-transparent border-r-transparent border-t-white/70" />
                 </div>
-              )}
+              </div>
             </div>
           )}
         {isPlayerOpen ? (
@@ -1311,7 +1427,7 @@ export default function StreamDashboard({
         ) : (
           (activeSection === "sports" ? sportsHero : heroMovie) && (
             <>
-              <div className="absolute inset-0 z-0">
+              <div key={activeSection === "sports" ? "sports" : heroMovie.id} className="absolute inset-0 z-0">
                 <Image
                   src={
                     activeSection === "sports"
@@ -1321,83 +1437,149 @@ export default function StreamDashboard({
                   }
                   alt={activeSection === "sports" ? sportsHero.title : heroMovie.title}
                   fill
-                  className="object-cover"
+                  className="object-cover object-[60%_20%] animate-fade-in"
                   priority
                 />
-                <div className="hero-vignette absolute inset-0 z-10" />
-                <div className="hero-vignette-left absolute inset-0 z-10" />
+                {/* cinematic overlays */}
+                <div className="absolute inset-0 z-10 bg-[linear-gradient(90deg,rgba(9,11,18,0.96)_0%,rgba(9,11,18,0.82)_32%,rgba(9,11,18,0.25)_62%,rgba(9,11,18,0)_100%)]" />
+                <div className="absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(9,11,18,0.75)_0%,rgba(9,11,18,0)_22%,rgba(9,11,18,0.35)_70%,#090b12_100%)]" />
               </div>
 
-              <div className="absolute bottom-20 left-4 z-20 flex max-w-[90%] flex-col gap-3 sm:bottom-1/4 sm:max-w-xl sm:gap-4 md:left-12 lg:bottom-1/3">
-                {activeSection === "sports" && (
-                  <div className="flex items-center gap-1.5 rounded-full bg-red-600/90 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-white w-max shadow-lg animate-pulse">
-                    <span className="h-1.5 w-1.5 rounded-full bg-white animate-ping" />
-                    Live Match
-                  </div>
-                )}
-                <h1 className="animate-banner-text text-3xl font-extrabold uppercase italic tracking-tighter text-white drop-shadow-2xl sm:text-5xl md:text-7xl">
-                  {activeSection === "sports" ? sportsHero.title : heroMovie.title}
-                </h1>
-                <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-white drop-shadow-md sm:gap-3 sm:text-sm">
+              <div className="absolute inset-x-0 bottom-0 z-20 px-4 pb-16 sm:px-6 sm:pb-20 md:px-12 md:pb-24 lg:px-14">
+                <div
+                  key={`hero-copy-${activeSection === "sports" ? "sports" : heroMovie.id}`}
+                  className="max-w-[42rem] animate-banner-text"
+                >
                   {activeSection === "sports" ? (
                     <>
-                      <span className="text-green-400 font-extrabold">{sportsHero.category}</span>
-                      <span className="text-red-400 font-bold">{sportsHero.score}</span>
+                      <div className="mb-4 flex w-max items-center gap-2 rounded-full bg-red-600/90 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white shadow-lg">
+                        <span className="h-1.5 w-1.5 animate-ping rounded-full bg-white" />
+                        Live now
+                      </div>
+                      <h1 className="font-[var(--font-body)] text-4xl font-extrabold uppercase leading-[0.95] tracking-tight text-[#9db2dd] drop-shadow-[0_6px_30px_rgba(0,0,0,0.7)] sm:text-6xl lg:text-7xl">
+                        {sportsHero.title}
+                      </h1>
                     </>
                   ) : (
                     <>
-                      <span className="text-green-400">
-                        {heroMovie.rating * 10}% Match
-                      </span>
-                      <span>{heroMovie.releaseDate.slice(0, 4)}</span>
-                      <span className="border border-white/40 px-1 py-0.5 text-[10px] uppercase">
-                        HD
-                      </span>
-                      {heroMovie.mediaType === "tv" && (
-                        <span className="text-gray-300">TV Series</span>
-                      )}
+                      <div className="mb-4 flex items-center gap-2.5 text-sm font-semibold text-white">
+                        <span className="flex h-6 items-center rounded-[4px] bg-[#E50914] px-1.5 text-[9px] font-black uppercase tracking-wider text-white">
+                          TMDB
+                        </span>
+                        <span className="text-white/95">
+                          #{heroIndex + 1} in{" "}
+                          {heroMovie.mediaType === "tv" ? "shows" : "movies"}
+                        </span>
+                      </div>
+
+                      <h1 className="font-[var(--font-body)] text-4xl font-extrabold uppercase leading-[0.95] tracking-tight text-[#9db2dd] drop-shadow-[0_6px_30px_rgba(0,0,0,0.7)] sm:text-6xl lg:text-[5.2rem]">
+                        {heroMovie.title}
+                      </h1>
+
+                      <div className="mt-4 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] font-medium text-white/85 sm:text-sm">
+                        <span className="flex items-center gap-1.5 text-white">
+                          <Star className="h-3.5 w-3.5 fill-[#E50914] text-[#E50914]" />
+                          {heroMovie.rating ? heroMovie.rating.toFixed(1) : "N/A"}
+                        </span>
+                        <span className="text-white/30">•</span>
+                        <span>{heroMovie.releaseDate?.slice(0, 4) || "TBA"}</span>
+                        <span className="text-white/30">•</span>
+                        <span>{heroMovie.mediaType === "tv" ? "Show" : "Movie"}</span>
+                        {heroGenres.map((genre) => (
+                          <span key={genre} className="flex items-center gap-2.5">
+                            <span className="text-white/30">•</span>
+                            <span>{genre}</span>
+                          </span>
+                        ))}
+                      </div>
+
+                      <p className="mt-4 line-clamp-3 max-w-xl text-sm leading-relaxed text-white/80 sm:text-[15px]">
+                        {heroMovie.overview ||
+                          "No synopsis available for this title yet."}
+                      </p>
                     </>
                   )}
-                </div>
-                <p className="line-clamp-3 max-w-2xl text-sm text-white drop-shadow-md sm:text-base md:text-lg">
-                  {activeSection === "sports" ? sportsHero.odds : heroMovie.overview}
-                </p>
-                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                  <button
-                    onClick={() => {
-                      if (activeSection === "sports") {
-                        playSports(sportsHero);
-                      } else {
-                        playMovie(heroMovie);
-                      }
-                    }}
-                    className="flex items-center gap-2 rounded bg-white px-5 py-2 text-sm font-bold text-black transition hover:bg-white/80 sm:px-8 sm:text-lg"
-                  >
-                    <Play className="h-5 w-5 fill-black sm:h-6 sm:w-6" /> Play Live
-                  </button>
-                  {activeSection !== "sports" && (
-                    <button className="flex items-center gap-2 rounded bg-gray-500/70 px-5 py-2 text-sm font-bold text-white transition hover:bg-gray-500/50 sm:px-8 sm:text-lg">
-                      <Info className="h-5 w-5 sm:h-6 sm:w-6" /> More Info
-                    </button>
+
+                  {activeSection === "sports" && (
+                    <div className="mt-4 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] font-medium text-white/85">
+                      <span className="font-extrabold text-[#E50914]">
+                        {sportsHero.category}
+                      </span>
+                      <span className="text-white/30">•</span>
+                      <span>{sportsHero.score}</span>
+                    </div>
                   )}
+
+                  <div className="mt-7 flex flex-wrap items-center gap-3">
+                    <button
+                      onClick={() => {
+                        if (activeSection === "sports") {
+                          playSports(sportsHero);
+                        } else {
+                          playMovie(heroMovie);
+                        }
+                      }}
+                      className="flex items-center gap-2.5 rounded-[10px] bg-white px-6 py-3 text-sm font-bold text-black shadow-[0_10px_30px_rgba(0,0,0,0.35)] transition-all hover:scale-[1.03] hover:bg-white/90 sm:px-8"
+                    >
+                      <Play className="h-[18px] w-[18px] fill-black" />
+                      Play
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (activeSection !== "sports") openDetail(heroMovie);
+                      }}
+                      className="flex items-center gap-2.5 rounded-[10px] border border-white/10 bg-white/[0.14] px-6 py-3 text-sm font-semibold text-white backdrop-blur-md transition-all hover:bg-white/[0.22] sm:px-8"
+                    >
+                      <Info className="h-[18px] w-[18px]" />
+                      More info
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <div className="absolute bottom-20 right-0 z-20 flex items-center gap-2 pr-3 sm:bottom-1/4 sm:gap-4 sm:pr-12 lg:bottom-1/3">
-                <button
-                  onClick={() => setIsMuted(!isMuted)}
-                  className="rounded-full border-2 border-white/50 p-2 text-white hover:border-white"
-                >
-                  {isMuted ? (
-                    <VolumeX className="h-5 w-5" />
-                  ) : (
-                    <Volume2 className="h-5 w-5" />
-                  )}
-                </button>
-                <div className="border-l-4 border-white bg-black/40 px-2 py-1 text-sm font-medium text-white backdrop-blur-sm sm:px-4 sm:text-lg">
-                  TV-MA
+              {/* Carousel controls */}
+              {activeSection !== "sports" && heroList.length > 0 && (
+                <div className="absolute bottom-6 right-4 z-20 flex items-center gap-4 sm:bottom-8 sm:right-6 md:right-12 lg:right-14">
+                  <button
+                    onClick={() => setIsMuted(!isMuted)}
+                    aria-label={isMuted ? "Unmute" : "Mute"}
+                    className="hidden h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-black/35 text-white/80 backdrop-blur-md transition-colors hover:border-white/40 hover:text-white sm:flex"
+                  >
+                    {isMuted ? (
+                      <VolumeX className="h-4 w-4" />
+                    ) : (
+                      <Volume2 className="h-4 w-4" />
+                    )}
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    {heroList.map((movie, index) => (
+                      <button
+                        key={`${movie.mediaType}-${movie.id}-dot`}
+                        onClick={() => setHeroIndex(index)}
+                        aria-label={`Show featured title ${index + 1}`}
+                        className={`h-[3px] rounded-full transition-all duration-500 ${
+                          index === heroIndex % heroList.length
+                            ? "w-8 bg-white"
+                            : "w-6 bg-white/25 hover:bg-white/50"
+                        }`}
+                      />
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={() => setIsHeroPaused((prev) => !prev)}
+                    aria-label={isHeroPaused ? "Resume slideshow" : "Pause slideshow"}
+                    className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-black/35 text-white backdrop-blur-md transition-colors hover:border-white/50"
+                  >
+                    {isHeroPaused ? (
+                      <Play className="h-4 w-4 fill-white" />
+                    ) : (
+                      <Pause className="h-4 w-4 fill-white" />
+                    )}
+                  </button>
                 </div>
-              </div>
+              )}
             </>
           )
         )}
@@ -1605,14 +1787,25 @@ export default function StreamDashboard({
             {filteredCategories.map((category) => {
               const isTop10 = category.key.includes("top-10");
               return (
-                <div key={category.key} className="space-y-3 px-4 md:px-12">
-                  <h2 className="flex items-center gap-1.5 text-xl font-bold text-white hover:text-gray-200 transition-colors cursor-pointer group/title">
-                    {category.label}
+                <div key={category.key} className="space-y-3 px-4 md:px-10 lg:px-14">
+                  <h2 className="flex items-center gap-1.5 text-[19px] font-bold tracking-tight text-white transition-colors hover:text-gray-200 cursor-pointer group/title">
+                    {isTop10 ? "TOP 10 on DesiMovies" : category.label}
                     <ChevronRight className="h-5 w-5 text-[#E50914] opacity-0 -translate-x-1 transition-all duration-200 group-hover/title:opacity-100 group-hover/title:translate-x-0" />
                   </h2>
 
                   <div className="relative">
                     <div className="no-scrollbar flex gap-3 overflow-x-auto overflow-y-hidden py-6 px-1">
+                      {category.movies.length === 0 && (
+                        <div className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-6 py-10 text-center">
+                          <p className="text-sm font-semibold text-white/70">
+                            No titles here yet
+                          </p>
+                          <p className="mt-1 text-xs text-white/40">
+                            We couldn&apos;t find anything in this category. Try
+                            another section.
+                          </p>
+                        </div>
+                      )}
                       {category.movies.map((movie, index) => (
                         <div
                           key={`${category.key}-${movie.id}`}

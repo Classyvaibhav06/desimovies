@@ -121,3 +121,17 @@ body {
 .animate-banner-text {
   animation: fadeIn 1s ease-out forwards;
 }
+
+/* Pure cross-fade used by the hero backdrop */
+@keyframes fadeInOpacity {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fadeInOpacity 900ms ease-out forwards;
+}
