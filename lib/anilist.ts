@@ -49,14 +49,17 @@ type MediaNode = {
   previousEpisodeId?: number | null;
 };
 
-async function anilistFetch<T>(query: string, variables: Record<string, unknown> = {}): Promise<T | null> {
+async function anilistFetch<T>(
+  query: string,
+  variables: Record<string, unknown> = {},
+): Promise<T | null> {
   try {
     const response = await fetch(ANILIST_API, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ query, variables }),
-      next: { revalidate: 3600 },
-      signal: AbortSignal.timeout(8000),
+      cache: "no-store",
+      signal: AbortSignal.timeout(12000),
     });
     if (!response.ok) return null;
     const payload = (await response.json()) as { data?: T; errors?: unknown[] };
@@ -131,7 +134,7 @@ export async function getTrendingAnime(perPage = 16): Promise<AnimeSummary[]> {
 export async function getAnimeById(anilistId: number): Promise<AnimeDetail | null> {
   const data = await anilistFetch<{ Media: MediaNode }>(
     `query ($id: Int) {
-      Media(id: $id, type: ANIME) { ${MEDIA_FIELDS} nextEpisodeId previousEpisodeId }
+      Media(id: $id, type: ANIME) { ${MEDIA_FIELDS} }
     }`,
     { id: anilistId },
   );
@@ -145,12 +148,15 @@ export async function getAnimeById(anilistId: number): Promise<AnimeDetail | nul
       .map((node) => node?.name)
       .filter((name): name is string => Boolean(name)),
     descriptionHtml: data.Media.description ?? null,
-    nextEpisodeId: data.Media.nextEpisodeId ?? null,
-    previousEpisodeId: data.Media.previousEpisodeId ?? null,
+    nextEpisodeId: null,
+    previousEpisodeId: null,
   };
 }
 
-export async function searchAnime(query: string, perPage = 16): Promise<AnimeSummary[]> {
+export async function searchAnime(
+  query: string,
+  perPage = 16,
+): Promise<AnimeSummary[]> {
   const trimmed = query.trim();
   if (trimmed.length < 2) return [];
 

@@ -25,14 +25,19 @@ export default async function TitlePage({ params }: PageProps) {
         ?.id ?? defaultMovieId;
 
     const { mediaType: rawMediaType, id: rawId } = await params;
-    const mediaType = parseMediaType(rawMediaType);
+    const isAnime = rawMediaType === "anime";
+    const mediaType = isAnime ? "tv" : parseMediaType(rawMediaType);
     const id = parseNumber(rawId, firstMovieId);
 
     return (
       <StreamDashboard
         categories={categories}
         fallbackMovieId={firstMovieId}
-        initialDetail={{ id, mediaType }}
+        initialDetail={
+          isAnime
+            ? { id, mediaType, anilistId: id }
+            : { id, mediaType }
+        }
       />
     );
   } catch (error) {

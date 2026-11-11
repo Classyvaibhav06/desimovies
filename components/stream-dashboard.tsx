@@ -114,6 +114,8 @@ type InitialPlayback = {
 type InitialDetail = {
   id: number;
   mediaType: MediaType;
+  /** AniList id for anime titles. */
+  anilistId?: number;
 };
 
 const EMBED_SOURCES = [
@@ -201,8 +203,15 @@ function buildWatchPath(
   season: number,
   episode: number,
   sourceId: string,
-  isAnime: boolean = false,
+  anilistId?: number,
 ): string {
+  // Anime have their own route so the AniList id is never confused with TMDB
+  if (anilistId) {
+    const animeParams = new URLSearchParams();
+    animeParams.set("episode", String(episode));
+    return `/watch/anime/${anilistId}?${animeParams.toString()}`;
+  }
+
   const params = new URLSearchParams();
   if (mediaType === "tv") {
     params.set("season", String(season));
@@ -210,9 +219,6 @@ function buildWatchPath(
   }
   if (sourceId && sourceId !== "vidy") {
     params.set("source", sourceId);
-  }
-  if (isAnime) {
-    params.set("anime", "1");
   }
   const query = params.toString();
   return `/watch/${mediaType}/${tmdbId}${query ? `?${query}` : ""}`;
@@ -384,7 +390,9 @@ export default function StreamDashboard({
     initialPlayback?.sourceId ?? "vidy",
   );
   const [resumeAt, setResumeAt] = useState<number>(0);
-  const [selectedAnilistId, setSelectedAnilistId] = useState<number | null>(null);
+  const [selectedAnilistId, setSelectedAnilistId] = useState<number | null>(
+    initialPlayback?.anilistId ?? null,
+  );
   const [watchPositions, setWatchPositions] = useState<
     Record<string, { currentTime: number; duration: number; updatedAt: number }>
   >({});
@@ -601,35 +609,59 @@ export default function StreamDashboard({
 
     async function fetchInitialDetail() {
       // Anime are keyed by AniList — TMDB would return the wrong title
-      const animeEntry = categories
-        .flatMap((category) => category.movies)
-        .find(
-          (movie) => movie.id === detail.id && typeof movie.anilistId === "number",
-        );
+      const animeId =
+        detail.anilistId ??
+        categories
+          .flatMap((category) => category.movies)
+          .find(
+            (movie) =>
+              movie.id === detail.id && typeof movie.anilistId === "number",
+          )?.anilistId;
 
-      if (animeEntry) {
-        const anime = animeEntry as MovieSummary;
-        const animeResult: SearchResult = {
-          id: anime.id,
-          title: anime.title,
-          overview: anime.overview,
-          posterPath: anime.posterPath,
-          backdropPath: anime.backdropPath,
-          releaseDate: anime.releaseDate,
-          rating: anime.rating,
-          mediaType: "tv",
-          genres: [],
-          numberOfSeasons: 1,
-          seasons: [],
-          tagline: anime.format ?? "",
-          anilistId: anime.anilistId,
-          episodes: anime.episodes,
-        };
-        if (!isActive) return;
-        setDetailMovie(animeResult);
-        setDetailData(animeResult);
-        setIsLoadingDetail(false);
-        return;
+      if (animeId) {
+        try {
+          const res = await fetch(`/api/anime/${animeId}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (!isActive) return;
+            setDetailMovie(data);
+            setDetailData(data);
+            return;
+          }
+        } catch {
+          /* fall through to the catalogue copy */
+        }
+
+        const animeEntry = categories
+          .flatMap((category) => category.movies)
+          .find(
+            (movie) =>
+              movie.id === detail.id && typeof movie.anilistId === "number",
+          );
+
+        if (animeEntry) {
+          const anime = animeEntry as MovieSummary;
+          const animeResult: SearchResult = {
+            id: anime.id,
+            title: anime.title,
+            overview: anime.overview,
+            posterPath: anime.posterPath,
+            backdropPath: anime.backdropPath,
+            releaseDate: anime.releaseDate,
+            rating: anime.rating,
+            mediaType: "tv",
+            genres: [],
+            numberOfSeasons: 1,
+            seasons: [],
+            tagline: anime.format ?? "",
+            anilistId: anime.anilistId,
+            episodes: anime.episodes,
+          };
+          if (!isActive) return;
+          setDetailMovie(animeResult);
+          setDetailData(animeResult);
+          return;
+        }
       }
 
       try {
@@ -663,9 +695,10 @@ export default function StreamDashboard({
       season,
       episode,
       selectedSource,
-      Boolean(selectedAnilistId),
+      selectedAnilistId ?? undefined,
     );
-    router.replace(nextPath);
+    const current = `${window.location.pathname}${window.location.search}`;
+    if (nextPath !== current) router.replace(nextPath);
   }, [
     isWatchRoute,
     isPlayerOpen,
@@ -990,13 +1023,20 @@ export default function StreamDashboard({
         nextSeason,
         nextEpisode,
         nextSource,
-        Boolean(anilistId),
+        anilistId,
       ),
     );
   }
 
   function openDetail(movie: MovieSummary | SearchResult) {
-    router.push(buildTitlePath(movie.mediaType, movie.id));
+    const anilistId =
+      "anilistId" in movie && typeof movie.anilistId === "number"
+        ? movie.anilistId
+        : undefined;
+    // Anime have their own route so TMDB/AniList ids never collide
+    router.push(
+      anilistId ? `/title/anime/${anilistId}` : buildTitlePath(movie.mediaType, movie.id),
+    );
   }
 
   useEffect(() => {
