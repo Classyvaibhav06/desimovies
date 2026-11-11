@@ -607,6 +607,11 @@ export default function StreamDashboard({
     setDetailSeason(1);
     setIsLoadingDetail(true);
 
+    // Safety net: never trap the modal behind the spinner
+    const loadingTimeout = window.setTimeout(() => {
+      if (isActive) setIsLoadingDetail(false);
+    }, 6000);
+
     async function fetchInitialDetail() {
       // Anime are keyed by AniList — TMDB would return the wrong title
       const animeId =
@@ -626,6 +631,7 @@ export default function StreamDashboard({
             if (!isActive) return;
             setDetailMovie(data);
             setDetailData(data);
+            setIsLoadingDetail(false);
             return;
           }
         } catch {
@@ -660,8 +666,24 @@ export default function StreamDashboard({
           if (!isActive) return;
           setDetailMovie(animeResult);
           setDetailData(animeResult);
+          setIsLoadingDetail(false);
           return;
         }
+
+        // Nothing resolved — still release the spinner so Play stays usable
+        if (!isActive) return;
+        setIsLoadingDetail(false);
+        setDetailMovie({
+          id: detail.id,
+          title: "Title unavailable",
+          overview: "",
+          posterPath: null,
+          backdropPath: null,
+          releaseDate: "",
+          rating: 0,
+          mediaType: detail.mediaType,
+          anilistId: animeId,
+        });
       }
 
       try {
@@ -684,6 +706,7 @@ export default function StreamDashboard({
 
     return () => {
       isActive = false;
+      window.clearTimeout(loadingTimeout);
     };
   }, [initialDetail]);
 
@@ -2191,7 +2214,7 @@ export default function StreamDashboard({
             {/* Info section */}
             <div className="relative space-y-6 p-4 sm:p-6">
               {isLoadingDetail && (
-                <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#181818]/70 backdrop-blur-[2px]">
+                <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-[#181818]/70 backdrop-blur-[2px]">
                   <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#e50914] border-t-transparent" />
                 </div>
               )}
