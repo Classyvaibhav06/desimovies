@@ -148,54 +148,20 @@ const EMBED_SOURCES = [
   },
 ];
 
-function buildEmbedUrl(
-  mediaType: MediaType,
+/**
+ * Builds a TMDB-namespace embed URL.
+ *
+ * Every provider handled here (cinesrc, vidsrc.su, autoembed, vidsrc.wiki)
+ * resolves the id against TMDB. Only Vidy understands AniList ids, and only
+ * on its dedicated /anime/ route.
+ */
+function buildTmdbEmbedUrl(
+  mediaType: "movie" | "tv",
   tmdbId: number,
   season: number,
   episode: number,
-  sourceId: string = "vidy",
-  progressSeconds: number = 0,
-  anilistId?: number,
-  tmdbFallback?: { id: number; mediaType: "movie" | "tv"; title: string },
-  animeMode: "tmdb" | "anilist" = "tmdb",
+  sourceId: string,
 ): string {
-  if (sourceId === "vidy_anime" && anilistId) {
-    return buildVidyAnimeUrl({
-      anilistId,
-      episode,
-      progressSeconds,
-    });
-  }
-
-  if (sourceId === "vidy") {
-    // Anime is keyed by AniList id (Vidy: /anime/{anilistId}/{episode})
-    if (anilistId) {
-      // Prefer the TMDB id: it uses the movie/series provider, which has
-      // working streams (the AniList provider is frequently empty).
-      if (animeMode === "tmdb" && tmdbFallback) {
-        return buildVidyUrl({
-          mediaType: tmdbFallback.mediaType,
-          tmdbId: tmdbFallback.id,
-          season: 1,
-          episode: tmdbFallback.mediaType === "tv" ? episode : 1,
-          progressSeconds,
-        });
-      }
-      return buildVidyAnimeUrl({
-        anilistId,
-        episode,
-        progressSeconds,
-      });
-    }
-    return buildVidyUrl({
-      mediaType,
-      tmdbId,
-      season,
-      episode,
-      progressSeconds,
-    });
-  }
-
   if (sourceId === "cinesrc") {
     return mediaType === "tv"
       ? `https://cinesrc.st/embed/tv/${tmdbId}/${season}/${episode}`
@@ -218,6 +184,82 @@ function buildEmbedUrl(
   return mediaType === "tv"
     ? `https://vidsrc.wiki/embed/tv/${tmdbId}/${season}/${episode}/`
     : `https://vidsrc.wiki/embed/movie/${tmdbId}/`;
+}
+
+function buildEmbedUrl(
+  mediaType: MediaType,
+  tmdbId: number,
+  season: number,
+  episode: number,
+  sourceId: string = "vidy",
+  progressSeconds: number = 0,
+  anilistId?: number,
+  tmdbFallback?: { id: number; mediaType: "movie" | "tv"; title: string },
+  animeMode: "tmdb" | "anilist" = "tmdb",
+): string {
+  // ---- Anime ----
+  // Anime are keyed by AniList id in this app, but `tmdbId` here is still
+  // the AniList id. Handing that to a TMDB-namespace provider resolves a
+  // *different* title (AniList and TMDB ids overlap numerically) or an
+  // empty player, so anime must never fall through to the TMDB branches
+  // without a real TMDB id.
+  if (anilistId) {
+    // Vidy understands AniList ids directly.
+    if (sourceId === "vidy_anime") {
+      return buildVidyAnimeUrl({
+        anilistId,
+        episode,
+        progressSeconds,
+      });
+    }
+
+    // Every other provider needs a TMDB id. Without a TMDB equivalent for
+    // this title, Vidy/AniList is the only source that can work at all.
+    if (!tmdbFallback || animeMode === "anilist") {
+      return buildVidyAnimeUrl({
+        anilistId,
+        episode,
+        progressSeconds,
+      });
+    }
+
+    // Prefer the TMDB id: it uses the movie/series provider, which has
+    // working streams (the AniList provider is frequently empty).
+    const tmdbMediaType = tmdbFallback.mediaType;
+    const tmdbSeason = 1;
+    const tmdbEpisode = tmdbMediaType === "tv" ? episode : 1;
+
+    if (sourceId === "vidy") {
+      return buildVidyUrl({
+        mediaType: tmdbMediaType,
+        tmdbId: tmdbFallback.id,
+        season: tmdbSeason,
+        episode: tmdbEpisode,
+        progressSeconds,
+      });
+    }
+
+    return buildTmdbEmbedUrl(
+      tmdbMediaType,
+      tmdbFallback.id,
+      tmdbSeason,
+      tmdbEpisode,
+      sourceId,
+    );
+  }
+
+  // ---- Everything else is TMDB-namespace ----
+  if (sourceId === "vidy") {
+    return buildVidyUrl({
+      mediaType,
+      tmdbId,
+      season,
+      episode,
+      progressSeconds,
+    });
+  }
+
+  return buildTmdbEmbedUrl(mediaType, tmdbId, season, episode, sourceId);
 }
 
 function buildWatchPath(
@@ -421,10 +463,25 @@ export default function StreamDashboard({
   const [vidyPlaying, setVidyPlaying] = useState(false);
   const [vidyStalled, setVidyStalled] = useState(false);
   const [animeTmdbFallback, setAnimeTmdbFallback] = useState<{
+    /** The anime this fallback was resolved for. */
+    anilistId: number;
     id: number;
     mediaType: "movie" | "tv";
     title: string;
   } | null>(null);
+  /** Episode count for the selected anime (the watch route has no detail modal). */
+  const [animeEpisodeCount, setAnimeEpisodeCount] = useState<number | null>(
+    null,
+  );
+
+  /**
+   * The TMDB fallback only applies to the anime it was resolved for —
+   * otherwise switching anime would keep the previous title's TMDB id.
+   */
+  const animeTmdbFallbackForSelection =
+    animeTmdbFallback && animeTmdbFallback.anilistId === selectedAnilistId
+      ? animeTmdbFallback
+      : null;
   const [animeSourceMode, setAnimeSourceMode] = useState<"tmdb" | "anilist">(
     "tmdb",
   );
@@ -646,6 +703,52 @@ export default function StreamDashboard({
     );
   }, [initialPlayback]);
 
+  // Resolve the TMDB equivalent of the selected anime.
+  //
+  // Clicking a card resolves this in playMovie(), but a deep link
+  // (/watch/anime/<anilistId>) or a page refresh starts with nothing, so
+  // every TMDB-namespace source would be handed the AniList id.
+  useEffect(() => {
+    if (!selectedAnilistId) {
+      setAnimeEpisodeCount(null);
+      return;
+    }
+    if (animeTmdbFallbackForSelection) return;
+
+    const animeId = selectedAnilistId;
+    let isActive = true;
+
+    async function resolveFallback() {
+      try {
+        const res = await fetch(`/api/anime/${animeId}`);
+        if (!res.ok || !isActive) return;
+        const data = await res.json();
+
+        if (isActive && typeof data?.episodes === "number") {
+          setAnimeEpisodeCount(data.episodes);
+        }
+
+        const fallback = data?.tmdbFallback;
+        if (!isActive || !fallback || typeof fallback.id !== "number") return;
+
+        setAnimeTmdbFallback({
+          anilistId: animeId,
+          id: fallback.id,
+          mediaType: fallback.mediaType === "movie" ? "movie" : "tv",
+          title: fallback.title ?? "",
+        });
+      } catch {
+        // No TMDB equivalent for this anime — the AniList source is used.
+      }
+    }
+
+    resolveFallback();
+
+    return () => {
+      isActive = false;
+    };
+  }, [selectedAnilistId, animeTmdbFallbackForSelection]);
+
   useEffect(() => {
     if (!initialDetail) return;
     const detail = initialDetail;
@@ -802,9 +905,25 @@ export default function StreamDashboard({
   // Fetch movie details when ID changes
   useEffect(() => {
     async function fetchDetails() {
+      // Anime are keyed by AniList id, but this endpoint is TMDB-namespace.
+      // Asking TMDB for an AniList id resolves a different title (or 404s),
+      // so an anime must be looked up by its TMDB fallback id instead.
+      const isAnime = selectedAnilistId !== null;
+      const tmdbId = isAnime ? animeTmdbFallbackForSelection?.id : selectedMovieId;
+      const tmdbMediaType = isAnime
+        ? animeTmdbFallbackForSelection?.mediaType
+        : selectedMediaType;
+
+      // No TMDB equivalent for this anime — the /api/anime detail already
+      // carries the episode count, so there is nothing to fetch.
+      if (isAnime && !tmdbId) {
+        setSelectedMovieDetails(null);
+        return;
+      }
+
       try {
         const response = await fetch(
-          `/api/movies/details?id=${selectedMovieId}&type=${selectedMediaType}`,
+          `/api/movies/details?id=${tmdbId}&type=${tmdbMediaType}`,
         );
         if (response.ok) {
           const data = await response.json();
@@ -815,7 +934,12 @@ export default function StreamDashboard({
       }
     }
     fetchDetails();
-  }, [selectedMovieId, selectedMediaType]);
+  }, [
+    selectedMovieId,
+    selectedMediaType,
+    selectedAnilistId,
+    animeTmdbFallbackForSelection,
+  ]);
 
   useEffect(() => {
     if (activeSection === "sports") {
@@ -857,11 +981,11 @@ export default function StreamDashboard({
         selectedSource,
         resumeAt,
         selectedAnilistId ?? undefined,
-        animeTmdbFallback ?? undefined,
+        animeTmdbFallbackForSelection ?? undefined,
         animeSourceMode,
       );
     },
-    [selectedMediaType, selectedMovieId, season, episode, selectedSource, selectedSportsChannel, selectedSportsSource, resumeAt, selectedAnilistId, animeTmdbFallback, animeSourceMode],
+    [selectedMediaType, selectedMovieId, season, episode, selectedSource, selectedSportsChannel, selectedSportsSource, resumeAt, selectedAnilistId, animeTmdbFallbackForSelection, animeSourceMode],
   );
 
   const heroList = useMemo(() => {
@@ -1106,16 +1230,24 @@ export default function StreamDashboard({
     }
 
     setSelectedAnilistId(anilistId ?? null);
-    setAnimeSourceMode(anilistId ? "tmdb" : "anilist");
+    // Compute the mode up front: setState is async, so reading
+    // `animeSourceMode` here would still give the previous value and could
+    // put `?src=anilist` on a URL that should use the TMDB source.
+    const nextAnimeMode: "tmdb" | "anilist" = anilistId ? "tmdb" : "anilist";
+    setAnimeSourceMode(nextAnimeMode);
     setAnimeTmdbFallback(
-      fallback && typeof fallback.id === "number"
+      fallback && typeof fallback.id === "number" && anilistId
         ? {
+            anilistId,
             id: fallback.id,
             mediaType: fallback.mediaType === "movie" ? "movie" : "tv",
             title: fallback.title ?? "",
           }
         : null,
     );
+    if (anilistId && typeof (movie as any)?.episodes === "number") {
+      setAnimeEpisodeCount((movie as any).episodes);
+    }
     setDetailMovie(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
 
@@ -1141,7 +1273,7 @@ export default function StreamDashboard({
         nextEpisode,
         nextSource,
         anilistId,
-        animeSourceMode,
+        nextAnimeMode,
       ),
     );
   }
@@ -1258,7 +1390,10 @@ export default function StreamDashboard({
   /** How many episodes the player should offer for the current title. */
   const episodeCount = useMemo(() => {
     if (selectedAnilistId) {
-      const animeEpisodes = (detailData as any)?.episodes;
+      // The watch route never loads the detail modal, so the episode count
+      // for anime comes from the /api/anime lookup instead.
+      const animeEpisodes =
+        animeEpisodeCount ?? (detailData as any)?.episodes;
       if (typeof animeEpisodes === "number" && animeEpisodes > 0) {
         return animeEpisodes;
       }
@@ -1268,7 +1403,13 @@ export default function StreamDashboard({
       selectedMovieDetails?.seasons?.find((s) => s.seasonNumber === season)
         ?.episodeCount || 20
     );
-  }, [selectedAnilistId, detailData, selectedMovieDetails, season]);
+  }, [
+    selectedAnilistId,
+    animeEpisodeCount,
+    detailData,
+    selectedMovieDetails,
+    season,
+  ]);
 
   /** Playback progress (0-100) reported by the Vidy player. */  function progressFor(movie: MovieSummary | SearchResult): number {
     const prefix = `${movie.mediaType}-${movie.id}-`;
@@ -1643,8 +1784,8 @@ export default function StreamDashboard({
                         className="rounded-lg bg-[#e50914] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#ff4651]"
                       >
                         {animeSourceMode === "anilist"
-                          ? animeTmdbFallback
-                            ? `Play “${animeTmdbFallback.title}” via movie/series source`
+                          ? animeTmdbFallbackForSelection
+                            ? `Play “${animeTmdbFallbackForSelection.title}” via movie/series source`
                             : "Retry the anime source"
                           : "Try the anime (AniList) source"}
                       </button>

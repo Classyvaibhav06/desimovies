@@ -13,6 +13,8 @@ export type AnimeSummary = {
   anilistId: number;
   title: string;
   titleRomaji: string;
+  /** Native (often Japanese) title — a third key for the TMDB title lookup. */
+  titleNative?: string;
   overview: string;
   posterPath: string | null;
   backdropPath: string | null;
@@ -80,6 +82,7 @@ function toAnimeSummary(media: MediaNode): AnimeSummary {
     anilistId: media.id,
     title,
     titleRomaji: media.title?.romaji?.trim() || title,
+    titleNative: media.title?.native?.trim() || undefined,
     overview: media.description?.replace(/<[^>]*>/g, "").trim() || "",
     posterPath: media.coverImage?.large ?? media.coverImage?.extraLarge ?? null,
     backdropPath: media.bannerImage ?? null,
