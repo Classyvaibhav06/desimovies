@@ -109,6 +109,8 @@ type InitialPlayback = {
   sourceId?: string;
   /** AniList id for anime titles. */
   anilistId?: number;
+  /** Which provider to use for anime: TMDB id (default) or AniList. */
+  animeMode?: "tmdb" | "anilist";
 };
 
 type InitialDetail = {
@@ -155,16 +157,26 @@ function buildEmbedUrl(
   progressSeconds: number = 0,
   anilistId?: number,
   tmdbFallback?: { id: number; mediaType: "movie" | "tv"; title: string },
+  animeMode: "tmdb" | "anilist" = "tmdb",
 ): string {
+  if (sourceId === "vidy_anime" && anilistId) {
+    return buildVidyAnimeUrl({
+      anilistId,
+      episode,
+      progressSeconds,
+    });
+  }
+
   if (sourceId === "vidy") {
     // Anime is keyed by AniList id (Vidy: /anime/{anilistId}/{episode})
     if (anilistId) {
-      // Fallback: play the same title through its TMDB id instead
-      if (tmdbFallback) {
+      // Prefer the TMDB id: it uses the movie/series provider, which has
+      // working streams (the AniList provider is frequently empty).
+      if (animeMode === "tmdb" && tmdbFallback) {
         return buildVidyUrl({
           mediaType: tmdbFallback.mediaType,
           tmdbId: tmdbFallback.id,
-          season,
+          season: 1,
           episode: tmdbFallback.mediaType === "tv" ? episode : 1,
           progressSeconds,
         });
@@ -215,11 +227,13 @@ function buildWatchPath(
   episode: number,
   sourceId: string,
   anilistId?: number,
+  animeMode: "tmdb" | "anilist" = "tmdb",
 ): string {
   // Anime have their own route so the AniList id is never confused with TMDB
   if (anilistId) {
     const animeParams = new URLSearchParams();
     animeParams.set("episode", String(episode));
+    if (animeMode === "anilist") animeParams.set("src", "anilist");
     return `/watch/anime/${anilistId}?${animeParams.toString()}`;
   }
 
@@ -411,7 +425,9 @@ export default function StreamDashboard({
     mediaType: "movie" | "tv";
     title: string;
   } | null>(null);
-  const [useAnimeFallback, setUseAnimeFallback] = useState(false);
+  const [animeSourceMode, setAnimeSourceMode] = useState<"tmdb" | "anilist">(
+    "tmdb",
+  );
   const [watchPositions, setWatchPositions] = useState<
     Record<string, { currentTime: number; duration: number; updatedAt: number }>
   >({});
@@ -613,6 +629,7 @@ export default function StreamDashboard({
     setEpisode(initialPlayback.episode ?? 1);
     setSelectedSource(initialPlayback.sourceId ?? "vidy");
     setSelectedAnilistId(initialPlayback.anilistId ?? null);
+    setAnimeSourceMode(initialPlayback.animeMode ?? "tmdb");
     setIsPlayerOpen(true);
 
     // Resume where the viewer left off (Vidy stores the position for us)
@@ -762,6 +779,7 @@ export default function StreamDashboard({
       episode,
       selectedSource,
       selectedAnilistId ?? undefined,
+      animeSourceMode,
     );
     const current = `${window.location.pathname}${window.location.search}`;
     if (nextPath !== current && lastReplacedPathRef.current !== nextPath) {
@@ -777,6 +795,7 @@ export default function StreamDashboard({
     episode,
     selectedSource,
     selectedAnilistId,
+    animeSourceMode,
     router,
   ]);
 
@@ -838,10 +857,11 @@ export default function StreamDashboard({
         selectedSource,
         resumeAt,
         selectedAnilistId ?? undefined,
-        useAnimeFallback && animeTmdbFallback ? animeTmdbFallback : undefined,
+        animeTmdbFallback ?? undefined,
+        animeSourceMode,
       );
     },
-    [selectedMediaType, selectedMovieId, season, episode, selectedSource, selectedSportsChannel, selectedSportsSource, resumeAt, selectedAnilistId, useAnimeFallback, animeTmdbFallback],
+    [selectedMediaType, selectedMovieId, season, episode, selectedSource, selectedSportsChannel, selectedSportsSource, resumeAt, selectedAnilistId, animeTmdbFallback, animeSourceMode],
   );
 
   const heroList = useMemo(() => {
@@ -1056,7 +1076,7 @@ export default function StreamDashboard({
     if (isTitleRoute) router.push("/");
   }
 
-  function playMovie(
+  async function playMovie(
     movie: MovieSummary | SearchResult,
     options?: { season?: number; episode?: number; sourceId?: string },
   ) {
@@ -1068,9 +1088,25 @@ export default function StreamDashboard({
         ? movie.anilistId
         : undefined;
 
+    // Anime: resolve the TMDB id so we can use the (working) movie/series
+    // provider instead of the AniList provider when possible.
+    let fallback =
+      (movie as any)?.tmdbFallback ??
+      null;
+    if (anilistId && !fallback) {
+      try {
+        const res = await fetch(`/api/anime/${anilistId}`);
+        if (res.ok) {
+          const data = await res.json();
+          fallback = data?.tmdbFallback ?? null;
+        }
+      } catch {
+        /* keep the AniList route */
+      }
+    }
+
     setSelectedAnilistId(anilistId ?? null);
-    setUseAnimeFallback(false);
-    const fallback = (movie as any)?.tmdbFallback;
+    setAnimeSourceMode(anilistId ? "tmdb" : "anilist");
     setAnimeTmdbFallback(
       fallback && typeof fallback.id === "number"
         ? {
@@ -1105,6 +1141,7 @@ export default function StreamDashboard({
         nextEpisode,
         nextSource,
         anilistId,
+        animeSourceMode,
       ),
     );
   }
@@ -1218,8 +1255,22 @@ export default function StreamDashboard({
     );
   }
 
-  /** Playback progress (0-100) reported by the Vidy player. */
-  function progressFor(movie: MovieSummary | SearchResult): number {
+  /** How many episodes the player should offer for the current title. */
+  const episodeCount = useMemo(() => {
+    if (selectedAnilistId) {
+      const animeEpisodes = (detailData as any)?.episodes;
+      if (typeof animeEpisodes === "number" && animeEpisodes > 0) {
+        return animeEpisodes;
+      }
+      return 20;
+    }
+    return (
+      selectedMovieDetails?.seasons?.find((s) => s.seasonNumber === season)
+        ?.episodeCount || 20
+    );
+  }, [selectedAnilistId, detailData, selectedMovieDetails, season]);
+
+  /** Playback progress (0-100) reported by the Vidy player. */  function progressFor(movie: MovieSummary | SearchResult): number {
     const prefix = `${movie.mediaType}-${movie.id}-`;
     const entries = Object.entries(watchPositions).filter(([key]) =>
       key.startsWith(prefix),
@@ -1580,16 +1631,22 @@ export default function StreamDashboard({
                     >
                       Retry
                     </button>
-                    {animeTmdbFallback && (
+                    {selectedAnilistId && (
                       <button
                         onClick={() => {
-                          setUseAnimeFallback(true);
+                          const nextMode =
+                            animeSourceMode === "anilist" ? "tmdb" : "anilist";
+                          setAnimeSourceMode(nextMode);
+                          setSelectedSource(nextMode === "anilist" ? "vidy_anime" : "vidy");
                           setVidyStalled(false);
                         }}
                         className="rounded-lg bg-[#e50914] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#ff4651]"
                       >
-                        Play &ldquo;{animeTmdbFallback.title}&rdquo; via movie/series
-                        source
+                        {animeSourceMode === "anilist"
+                          ? animeTmdbFallback
+                            ? `Play “${animeTmdbFallback.title}” via movie/series source`
+                            : "Retry the anime source"
+                          : "Try the anime (AniList) source"}
                       </button>
                     )}
                   </div>
@@ -1648,7 +1705,12 @@ export default function StreamDashboard({
                   </label>
                   <select
                     value={selectedSource}
-                    onChange={(e) => setSelectedSource(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setSelectedSource(value);
+                      if (value === "vidy_anime") setAnimeSourceMode("anilist");
+                      else if (value === "vidy") setAnimeSourceMode("tmdb");
+                    }}
                     className="cursor-pointer rounded-lg border border-white/10 bg-[#212121] px-3 py-1.5 text-sm text-[#f2f2f2] outline-none transition-colors focus:border-white/40"
                   >
                     {EMBED_SOURCES.map((s) => (
@@ -1656,13 +1718,16 @@ export default function StreamDashboard({
                         {s.name}
                       </option>
                     ))}
+                    {selectedAnilistId && (
+                      <option value="vidy_anime">Anime (AniList)</option>
+                    )}
                   </select>
                 </div>
               )}
 
               {selectedMediaType === "tv" &&
                 !selectedSportsChannel &&
-                !selectedAnilistId && (
+                !(selectedAnilistId && animeSourceMode === "anilist") && (
                 <>
                   <div className="flex flex-col gap-1">
                     <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#6f6f6f]">
@@ -1697,12 +1762,7 @@ export default function StreamDashboard({
                         className="w-20 rounded-lg border border-white/10 bg-[#212121] px-2 py-1.5 text-sm text-[#f2f2f2] outline-none transition-colors focus:border-white/40 sm:w-24 sm:px-3"
                       >
                         {Array.from(
-                          {
-                            length:
-                              selectedMovieDetails?.seasons?.find(
-                                (s) => s.seasonNumber === season,
-                              )?.episodeCount || 20,
-                          },
+                          { length: episodeCount },
                           (_, i) => i + 1,
                         ).map((e) => (
                           <option key={e} value={e}>
@@ -1720,19 +1780,10 @@ export default function StreamDashboard({
                         </button>
                         <button
                           onClick={() => {
-                            const maxEp =
-                              selectedMovieDetails?.seasons?.find(
-                                (s) => s.seasonNumber === season,
-                              )?.episodeCount || 99;
-                            if (episode < maxEp) setEpisode(episode + 1);
+                            if (episode < episodeCount) setEpisode(episode + 1);
                           }}
                           className="bg-zinc-800 p-1.5 rounded hover:bg-zinc-700 disabled:opacity-30"
-                          disabled={
-                            episode >=
-                            (selectedMovieDetails?.seasons?.find(
-                              (s) => s.seasonNumber === season,
-                            )?.episodeCount || 99)
-                          }
+                          disabled={episode >= episodeCount}
                         >
                           <ChevronRight className="h-4 w-4" />
                         </button>

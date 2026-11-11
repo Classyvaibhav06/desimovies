@@ -9,6 +9,7 @@ type PageProps = {
     season?: string;
     episode?: string;
     source?: string;
+    src?: string;
   }>;
 };
 
@@ -35,6 +36,7 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
       season?: string;
       episode?: string;
       source?: string;
+      src?: string;
     } = searchParams ? await searchParams : {};
     const mediaType = isAnime ? "tv" : parseMediaType(rawMediaType);
     const id = parseNumber(rawId, firstMovieId);
@@ -42,12 +44,21 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
     const episode = parseNumber(sp.episode, 1);
     const sourceId = sp.source;
     const anilistId = isAnime ? id : undefined;
+    const animeMode = sp.src === "anilist" ? "anilist" : "tmdb";
 
     return (
       <StreamDashboard
         categories={categories}
         fallbackMovieId={firstMovieId}
-        initialPlayback={{ id, mediaType, season, episode, sourceId, anilistId }}
+        initialPlayback={{
+          id,
+          mediaType,
+          season,
+          episode,
+          sourceId,
+          anilistId,
+          animeMode,
+        }}
       />
     );
   } catch (error) {
