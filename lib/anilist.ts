@@ -149,17 +149,28 @@ export async function getTrendingAnime(perPage = 16): Promise<AnimeSummary[]> {
   });
 }
 
+const animeDetailCache = new Map<number, { at: number; data: AnimeDetail | null }>();
+const ANIME_DETAIL_CACHE_TTL_MS = 30 * 60 * 1000;
+
 export async function getAnimeById(anilistId: number): Promise<AnimeDetail | null> {
+  const cached = animeDetailCache.get(anilistId);
+  if (cached && Date.now() - cached.at < ANIME_DETAIL_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
   const data = await anilistFetch<{ Media: MediaNode }>(
     `query ($id: Int) {
       Media(id: $id, type: ANIME) { ${MEDIA_FIELDS} }
     }`,
     { id: anilistId },
   );
-  if (!data?.Media) return null;
+  if (!data?.Media) {
+    animeDetailCache.set(anilistId, { at: Date.now(), data: null });
+    return null;
+  }
 
   const summary = toAnimeSummary(data.Media);
-  return {
+  const detail: AnimeDetail = {
     ...summary,
     status: data.Media.status ?? "UNKNOWN",
     studios: (data.Media.studios?.nodes ?? [])
@@ -169,6 +180,23 @@ export async function getAnimeById(anilistId: number): Promise<AnimeDetail | nul
     nextEpisodeId: null,
     previousEpisodeId: null,
   };
+  animeDetailCache.set(anilistId, { at: Date.now(), data: detail });
+  return detail;
+}
+
+/**
+ * Last-resort lookup: find the anime in the cached popular/trending lists.
+ * Keeps the detail page working when AniList rate-limits a direct lookup.
+ */
+export async function findAnimeInCatalogue(
+  anilistId: number,
+): Promise<AnimeSummary | null> {
+  const lists = await Promise.all([getPopularAnime(40), getTrendingAnime(40)]);
+  for (const list of lists) {
+    const match = list.find((anime) => anime.anilistId === anilistId);
+    if (match) return match;
+  }
+  return null;
 }
 
 export async function searchAnime(

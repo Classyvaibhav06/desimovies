@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAnimeById } from "@/lib/anilist";
+import { findAnimeInCatalogue, getAnimeById } from "@/lib/anilist";
 import { searchMediaByTitle, type SearchResult } from "@/lib/tmdb";
 
 /**
@@ -111,7 +111,33 @@ export async function GET(
   const anime = await getAnimeById(anilistId);
 
   if (!anime) {
-    return NextResponse.json({ error: "Anime not found" }, { status: 404 });
+    // AniList can rate-limit a direct lookup — fall back to the cached
+    // catalogue entry so the page still resolves instead of 404ing.
+    const cached = await findAnimeInCatalogue(anilistId);
+    if (!cached) {
+      return NextResponse.json({ error: "Anime not found" }, { status: 404 });
+    }
+    return NextResponse.json({
+      id: cached.anilistId,
+      anilistId: cached.anilistId,
+      title: cached.title,
+      titleRomaji: cached.titleRomaji,
+      titleNative: cached.titleNative ?? "",
+      overview: cached.overview,
+      posterPath: cached.posterPath,
+      backdropPath: cached.backdropPath,
+      releaseDate: cached.releaseDate,
+      rating: cached.rating,
+      mediaType: "tv",
+      genres: cached.genres,
+      tagline: cached.format,
+      episodes: cached.episodes,
+      status: "UNKNOWN",
+      studios: [],
+      numberOfSeasons: 1,
+      seasons: [],
+      tmdbFallback: fallbackCache.get(anilistId) ?? null,
+    });
   }
 
   let tmdbFallback = fallbackCache.get(anilistId);
