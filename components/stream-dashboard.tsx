@@ -460,8 +460,6 @@ export default function StreamDashboard({
   const [selectedAnilistId, setSelectedAnilistId] = useState<number | null>(
     initialPlayback?.anilistId ?? null,
   );
-  const [vidyPlaying, setVidyPlaying] = useState(false);
-  const [vidyStalled, setVidyStalled] = useState(false);
   const [animeTmdbFallback, setAnimeTmdbFallback] = useState<{
     /** The anime this fallback was resolved for. */
     anilistId: number;
@@ -617,11 +615,6 @@ export default function StreamDashboard({
       const currentTime = Number(payload.currentTime) || 0;
       const duration = Number(payload.duration) || 0;
 
-      if (payload.event === "play") {
-        setVidyPlaying(true);
-        setVidyStalled(false);
-      }
-
       // Finished the title — clear the saved position so it starts fresh next time
       if (payload.event === "ended") {
         setWatchPositions((prev) => {
@@ -659,24 +652,6 @@ export default function StreamDashboard({
     window.addEventListener("message", handleVidyMessage);
     return () => window.removeEventListener("message", handleVidyMessage);
   }, [isPlayerOpen, activePositionKey]);
-
-  // If the provider never starts playing, tell the user instead of spinning forever
-  useEffect(() => {
-    if (!isPlayerOpen) return;
-    setVidyPlaying(false);
-    setVidyStalled(false);
-    const timer = window.setTimeout(() => {
-      setVidyStalled(true);
-    }, 8000);
-    return () => window.clearTimeout(timer);
-  }, [
-    isPlayerOpen,
-    selectedMovieId,
-    selectedAnilistId,
-    selectedSource,
-    season,
-    episode,
-  ]);
 
   useEffect(() => {
     if (!initialPlayback) return;
@@ -1750,49 +1725,6 @@ export default function StreamDashboard({
                 style={{ pointerEvents: "auto" }}
               />
 
-              {/* Nothing started playing — explain it instead of spinning forever */}
-              {vidyStalled && !vidyPlaying && (
-                <div className="absolute inset-x-0 bottom-0 z-30 flex flex-col items-center gap-3 bg-gradient-to-t from-black/90 via-black/70 to-transparent px-6 pb-8 pt-16 text-center">
-                  <p className="text-sm font-semibold text-white">
-                    Still searching for a server…
-                  </p>
-                  <p className="max-w-md text-xs leading-relaxed text-white/60">
-                    This provider may not have a working stream for this title
-                    right now. Try another episode, another source, or come back
-                    later.
-                  </p>
-                  <div className="flex flex-wrap items-center justify-center gap-2">
-                    <button
-                      onClick={() => {
-                        setVidyStalled(false);
-                        setVidyPlaying(false);
-                        window.location.reload();
-                      }}
-                      className="rounded-lg border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-white/20"
-                    >
-                      Retry
-                    </button>
-                    {selectedAnilistId && (
-                      <button
-                        onClick={() => {
-                          const nextMode =
-                            animeSourceMode === "anilist" ? "tmdb" : "anilist";
-                          setAnimeSourceMode(nextMode);
-                          setSelectedSource(nextMode === "anilist" ? "vidy_anime" : "vidy");
-                          setVidyStalled(false);
-                        }}
-                        className="rounded-lg bg-[#e50914] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#ff4651]"
-                      >
-                        {animeSourceMode === "anilist"
-                          ? animeTmdbFallbackForSelection
-                            ? `Play “${animeTmdbFallbackForSelection.title}” via movie/series source`
-                            : "Retry the anime source"
-                          : "Try the anime (AniList) source"}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
               <button
                 onClick={closePlayer}
                 className="absolute right-3 top-3 z-50 rounded-full bg-black/60 p-2 text-white transition-all hover:scale-110 hover:bg-black/80 md:right-8 md:top-8"
