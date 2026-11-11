@@ -154,10 +154,21 @@ function buildEmbedUrl(
   sourceId: string = "vidy",
   progressSeconds: number = 0,
   anilistId?: number,
+  tmdbFallback?: { id: number; mediaType: "movie" | "tv"; title: string },
 ): string {
   if (sourceId === "vidy") {
     // Anime is keyed by AniList id (Vidy: /anime/{anilistId}/{episode})
     if (anilistId) {
+      // Fallback: play the same title through its TMDB id instead
+      if (tmdbFallback) {
+        return buildVidyUrl({
+          mediaType: tmdbFallback.mediaType,
+          tmdbId: tmdbFallback.id,
+          season,
+          episode: tmdbFallback.mediaType === "tv" ? episode : 1,
+          progressSeconds,
+        });
+      }
       return buildVidyAnimeUrl({
         anilistId,
         episode,
@@ -393,6 +404,14 @@ export default function StreamDashboard({
   const [selectedAnilistId, setSelectedAnilistId] = useState<number | null>(
     initialPlayback?.anilistId ?? null,
   );
+  const [vidyPlaying, setVidyPlaying] = useState(false);
+  const [vidyStalled, setVidyStalled] = useState(false);
+  const [animeTmdbFallback, setAnimeTmdbFallback] = useState<{
+    id: number;
+    mediaType: "movie" | "tv";
+    title: string;
+  } | null>(null);
+  const [useAnimeFallback, setUseAnimeFallback] = useState(false);
   const [watchPositions, setWatchPositions] = useState<
     Record<string, { currentTime: number; duration: number; updatedAt: number }>
   >({});
@@ -401,6 +420,7 @@ export default function StreamDashboard({
   const searchAbortControllerRef = useRef<AbortController | null>(null);
   const searchDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const moreNavRef = useRef<HTMLDivElement | null>(null);
+  const lastReplacedPathRef = useRef<string | null>(null);
 
   useEffect(() => {
     const handleTouch = () => {};
@@ -524,6 +544,11 @@ export default function StreamDashboard({
       const currentTime = Number(payload.currentTime) || 0;
       const duration = Number(payload.duration) || 0;
 
+      if (payload.event === "play") {
+        setVidyPlaying(true);
+        setVidyStalled(false);
+      }
+
       // Finished the title — clear the saved position so it starts fresh next time
       if (payload.event === "ended") {
         setWatchPositions((prev) => {
@@ -561,6 +586,24 @@ export default function StreamDashboard({
     window.addEventListener("message", handleVidyMessage);
     return () => window.removeEventListener("message", handleVidyMessage);
   }, [isPlayerOpen, activePositionKey]);
+
+  // If the provider never starts playing, tell the user instead of spinning forever
+  useEffect(() => {
+    if (!isPlayerOpen) return;
+    setVidyPlaying(false);
+    setVidyStalled(false);
+    const timer = window.setTimeout(() => {
+      setVidyStalled(true);
+    }, 8000);
+    return () => window.clearTimeout(timer);
+  }, [
+    isPlayerOpen,
+    selectedMovieId,
+    selectedAnilistId,
+    selectedSource,
+    season,
+    episode,
+  ]);
 
   useEffect(() => {
     if (!initialPlayback) return;
@@ -721,7 +764,10 @@ export default function StreamDashboard({
       selectedAnilistId ?? undefined,
     );
     const current = `${window.location.pathname}${window.location.search}`;
-    if (nextPath !== current) router.replace(nextPath);
+    if (nextPath !== current && lastReplacedPathRef.current !== nextPath) {
+      lastReplacedPathRef.current = nextPath;
+      router.replace(nextPath);
+    }
   }, [
     isWatchRoute,
     isPlayerOpen,
@@ -792,9 +838,10 @@ export default function StreamDashboard({
         selectedSource,
         resumeAt,
         selectedAnilistId ?? undefined,
+        useAnimeFallback && animeTmdbFallback ? animeTmdbFallback : undefined,
       );
     },
-    [selectedMediaType, selectedMovieId, season, episode, selectedSource, selectedSportsChannel, selectedSportsSource, resumeAt, selectedAnilistId],
+    [selectedMediaType, selectedMovieId, season, episode, selectedSource, selectedSportsChannel, selectedSportsSource, resumeAt, selectedAnilistId, useAnimeFallback, animeTmdbFallback],
   );
 
   const heroList = useMemo(() => {
@@ -1022,6 +1069,17 @@ export default function StreamDashboard({
         : undefined;
 
     setSelectedAnilistId(anilistId ?? null);
+    setUseAnimeFallback(false);
+    const fallback = (movie as any)?.tmdbFallback;
+    setAnimeTmdbFallback(
+      fallback && typeof fallback.id === "number"
+        ? {
+            id: fallback.id,
+            mediaType: fallback.mediaType === "movie" ? "movie" : "tv",
+            title: fallback.title ?? "",
+          }
+        : null,
+    );
     setDetailMovie(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
 
@@ -1499,6 +1557,44 @@ export default function StreamDashboard({
                 referrerPolicy="no-referrer"
                 style={{ pointerEvents: "auto" }}
               />
+
+              {/* Nothing started playing — explain it instead of spinning forever */}
+              {vidyStalled && !vidyPlaying && (
+                <div className="absolute inset-x-0 bottom-0 z-30 flex flex-col items-center gap-3 bg-gradient-to-t from-black/90 via-black/70 to-transparent px-6 pb-8 pt-16 text-center">
+                  <p className="text-sm font-semibold text-white">
+                    Still searching for a server…
+                  </p>
+                  <p className="max-w-md text-xs leading-relaxed text-white/60">
+                    This provider may not have a working stream for this title
+                    right now. Try another episode, another source, or come back
+                    later.
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    <button
+                      onClick={() => {
+                        setVidyStalled(false);
+                        setVidyPlaying(false);
+                        window.location.reload();
+                      }}
+                      className="rounded-lg border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-white/20"
+                    >
+                      Retry
+                    </button>
+                    {animeTmdbFallback && (
+                      <button
+                        onClick={() => {
+                          setUseAnimeFallback(true);
+                          setVidyStalled(false);
+                        }}
+                        className="rounded-lg bg-[#e50914] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#ff4651]"
+                      >
+                        Play &ldquo;{animeTmdbFallback.title}&rdquo; via movie/series
+                        source
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
               <button
                 onClick={closePlayer}
                 className="absolute right-3 top-3 z-50 rounded-full bg-black/60 p-2 text-white transition-all hover:scale-110 hover:bg-black/80 md:right-8 md:top-8"
