@@ -162,11 +162,19 @@ type TmdbAuthConfig = {
   appendApiKeyToUrl: boolean;
 };
 
+/** Placeholder values from .env.local.example must not hit the network. */
+function isUsableCredential(value: string | undefined): value is string {
+  if (!value) return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  return !/^(your_|your-|placeholder|changeme|xxx|todo|none)/i.test(trimmed);
+}
+
 function getTmdbAuthConfig(): TmdbAuthConfig {
   const apiKey = process.env.TMDB_API_KEY?.trim();
   const readAccessToken = process.env.TMDB_READ_ACCESS_TOKEN?.trim();
 
-  if (readAccessToken) {
+  if (isUsableCredential(readAccessToken)) {
     return {
       headers: {
         Authorization: `Bearer ${readAccessToken}`
@@ -175,7 +183,7 @@ function getTmdbAuthConfig(): TmdbAuthConfig {
     };
   }
 
-  if (apiKey) {
+  if (isUsableCredential(apiKey)) {
     return {
       headers: {},
       appendApiKeyToUrl: true
@@ -346,14 +354,32 @@ async function fetchTmdb(endpoint: string, mediaType: "movie" | "tv"): Promise<M
     const separator = endpoint.includes("?") ? "&" : "?";
     url = `${url}${separator}api_key=${apiKey}`;
   }
-  const response = await fetch(url, { headers: authConfig.headers, next: { revalidate: 1800 } });
+  const response = await fetch(url, {
+    headers: authConfig.headers,
+    next: { revalidate: 1800 },
+    signal: AbortSignal.timeout(5000),
+  });
   if (!response.ok) throw new Error(`TMDB request failed for ${endpoint} with status ${response.status}`);
   const data = (await response.json()) as TmdbResponse;
   const movies = data.results.map((m) => toMovieSummary(m, mediaType)).slice(0, 16);
   return applyFanartFallbackToMovies(movies);
 }
 
+const CATEGORY_CACHE_TTL_MS = 5 * 60 * 1000;
+let categoryCache: { at: number; data: CategoryWithMovies[] } | null = null;
+
 export async function getCategoryMovies(): Promise<CategoryWithMovies[]> {
+  // Serve the catalogue from memory so page transitions stay instant
+  if (categoryCache && Date.now() - categoryCache.at < CATEGORY_CACHE_TTL_MS) {
+    return categoryCache.data;
+  }
+
+  const categories = await loadCategoryMovies();
+  categoryCache = { at: Date.now(), data: categories };
+  return categories;
+}
+
+async function loadCategoryMovies(): Promise<CategoryWithMovies[]> {
   const seenMovieIds = new Set<number>();
   const seenTvIds = new Set<number>();
 

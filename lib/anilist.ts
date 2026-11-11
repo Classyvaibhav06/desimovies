@@ -107,28 +107,43 @@ const MEDIA_FIELDS = `
   studios { nodes { name } }
 `;
 
+const animeCache = new Map<string, { at: number; data: AnimeSummary[] }>();
+const ANIME_CACHE_TTL_MS = 10 * 60 * 1000;
+
+async function cachedAnime(key: string, loader: () => Promise<AnimeSummary[]>): Promise<AnimeSummary[]> {
+  const hit = animeCache.get(key);
+  if (hit && Date.now() - hit.at < ANIME_CACHE_TTL_MS) return hit.data;
+  const data = await loader();
+  if (data.length > 0) animeCache.set(key, { at: Date.now(), data });
+  return data;
+}
+
 export async function getPopularAnime(perPage = 16): Promise<AnimeSummary[]> {
-  const data = await anilistFetch<{ Page: { media: MediaNode[] } }>(
-    `query ($perPage: Int) {
-      Page(perPage: $perPage) {
-        media(sort: POPULARITY_DESC, type: ANIME, isAdult: false) { ${MEDIA_FIELDS} }
-      }
-    }`,
-    { perPage },
-  );
-  return (data?.Page?.media ?? []).map(toAnimeSummary);
+  return cachedAnime(`popular:${perPage}`, async () => {
+    const data = await anilistFetch<{ Page: { media: MediaNode[] } }>(
+      `query ($perPage: Int) {
+        Page(perPage: $perPage) {
+          media(sort: POPULARITY_DESC, type: ANIME, isAdult: false) { ${MEDIA_FIELDS} }
+        }
+      }`,
+      { perPage },
+    );
+    return (data?.Page?.media ?? []).map(toAnimeSummary);
+  });
 }
 
 export async function getTrendingAnime(perPage = 16): Promise<AnimeSummary[]> {
-  const data = await anilistFetch<{ Page: { media: MediaNode[] } }>(
-    `query ($perPage: Int) {
-      Page(perPage: $perPage) {
-        media(sort: TRENDING_DESC, type: ANIME, isAdult: false) { ${MEDIA_FIELDS} }
-      }
-    }`,
-    { perPage },
-  );
-  return (data?.Page?.media ?? []).map(toAnimeSummary);
+  return cachedAnime(`trending:${perPage}`, async () => {
+    const data = await anilistFetch<{ Page: { media: MediaNode[] } }>(
+      `query ($perPage: Int) {
+        Page(perPage: $perPage) {
+          media(sort: TRENDING_DESC, type: ANIME, isAdult: false) { ${MEDIA_FIELDS} }
+        }
+      }`,
+      { perPage },
+    );
+    return (data?.Page?.media ?? []).map(toAnimeSummary);
+  });
 }
 
 export async function getAnimeById(anilistId: number): Promise<AnimeDetail | null> {
