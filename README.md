@@ -26,6 +26,7 @@ It fetches category-wise movie data from TMDB and streams selected movies via Vi
 TMDB_READ_ACCESS_TOKEN=your_tmdb_read_access_token_here
 # Optional fallback (v3 auth)
 TMDB_API_KEY=your_tmdb_api_key_here
+yeah completely optional
 
 # Optional poster fallback for movie entries missing TMDB poster_path
 FANART_API_KEY=your_fanart_tv_api_key_here
