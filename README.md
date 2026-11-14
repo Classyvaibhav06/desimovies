@@ -3,7 +3,7 @@ ygyugiihjhbibk
 Movie streaming frontend built with Next.js App Router + Tailwind CSS.
 It fetches category-wise movie data from TMDB and streams selected movies via VidKing embed route.
 
-## API Routes Used
+## API Routes Used no
 
 - VidKing embed: `/embed/movie/{tmdbId}`
 - Example: `https://www.vidking.net/embed/movie/1078605`
