@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Bebas_Neue, Inter } from "next/font/google";
-import { Analytics } from "@vercel/analytics/next";
+import Script from "next/script";
 import { SmoothScrollProvider } from "@/components/smooth-scroll";
 import "lenis/dist/lenis.css";
 import "./globals.css";
@@ -34,7 +34,12 @@ export default function RootLayout({
     >
       <body className="font-[var(--font-body)]" suppressHydrationWarning>
         <SmoothScrollProvider>{children}</SmoothScrollProvider>
-        <Analytics />
+        {/* Cloudflare Web Analytics */}
+        <Script
+          src="https://static.cloudflareinsights.com/beacon.min.js"
+          data-cf-beacon='{"token": "0b7930b7d8354f0689c6c60866da9a58"}'
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );
