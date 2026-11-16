@@ -34,6 +34,8 @@ export function MovieCard<T extends RailItem>({
   const poster = posterUrl(movie.posterPath);
   const backdrop = backdropUrl(movie.backdropPath, "w500");
   const image = poster || backdrop;
+  // Local baked-in assets are already pre-sized — skip the image optimizer.
+  const isLocalAsset = image ? image.startsWith("/") : false;
 
   return (
     <div className="movie-card group/card">
@@ -45,6 +47,7 @@ export function MovieCard<T extends RailItem>({
             fill
             sizes="(max-width: 640px) 36vw, (max-width: 1024px) 22vw, 15vw"
             className="movie-card__poster"
+            unoptimized={isLocalAsset}
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-[#181818] p-3 text-center">

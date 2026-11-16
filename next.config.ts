@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   images: {
+    // The optimizer is deterministic per (url, w, q); make its Cache-Control long.
+    minimumCacheTTL: 604800,
     remotePatterns: [
       {
         protocol: "https",

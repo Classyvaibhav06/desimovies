@@ -1898,6 +1898,11 @@ export default function StreamDashboard({
                   fill
                   className="object-cover object-[center_28%] animate-fade-in"
                   priority
+                  unoptimized={String(
+                    activeSection === "sports"
+                      ? sportsHero.backdropPath
+                      : backdropUrl(heroMovie.backdropPath) || posterUrl(heroMovie.posterPath),
+                  ).startsWith("/")}
                 />
                 {/* cinematic overlays */}
                 <div className="absolute inset-0 z-10 bg-[linear-gradient(90deg,rgba(15,15,15,0.95)_0%,rgba(15,15,15,0.72)_34%,rgba(15,15,15,0.18)_64%,rgba(15,15,15,0)_100%)]" />
@@ -2071,6 +2076,10 @@ export default function StreamDashboard({
                         fill
                         sizes="(max-width: 640px) 170px, (max-width: 768px) 200px, 280px"
                         className="object-cover transition-transform duration-500 group-hover:scale-105"
+                        unoptimized={String(
+                          backdropUrl(movie.backdropPath) ||
+                            posterUrl(movie.posterPath),
+                        ).startsWith("/")}
                       />
                       <div className="absolute left-2 top-2 rounded bg-black/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white border border-white/20 backdrop-blur-sm">
                         {movie.mediaType === "tv"
@@ -2412,6 +2421,10 @@ export default function StreamDashboard({
                   alt={(detailData ?? detailMovie).title}
                   fill
                   className="object-cover"
+                  unoptimized={String(
+                    backdropUrl((detailData ?? detailMovie).backdropPath) ||
+                      posterUrl((detailData ?? detailMovie).posterPath),
+                  ).startsWith("/")}
                 />
               ) : (
                 <div className="h-full w-full bg-zinc-800 flex items-center justify-center">
