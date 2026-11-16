@@ -67,6 +67,22 @@ body {
 }
 
 /* ------------------------------------------------------------------
+   Lenis smooth scrolling
+   ------------------------------------------------------------------ */
+
+/* Lenis animates the scroll position itself, so the browser must never
+   smooth-scroll on its own. */
+html.lenis {
+  scroll-behavior: auto !important;
+}
+
+/* Lenis disables pointer events on iframes while a smooth scroll is in
+   flight. The Vidy player must stay clickable, so opt it back in. */
+.lenis.lenis-smooth iframe#player-iframe {
+  pointer-events: auto;
+}
+
+/* ------------------------------------------------------------------
    Row heading — movy.sx section titles
    ------------------------------------------------------------------ */
 .row-heading {

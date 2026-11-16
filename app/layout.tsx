@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Bebas_Neue, Inter } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
+import { SmoothScrollProvider } from "@/components/smooth-scroll";
+import "lenis/dist/lenis.css";
 import "./globals.css";
 
 const headingFont = Bebas_Neue({
@@ -31,7 +33,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="font-[var(--font-body)]" suppressHydrationWarning>
-        {children}
+        <SmoothScrollProvider>{children}</SmoothScrollProvider>
         <Analytics />
       </body>
     </html>

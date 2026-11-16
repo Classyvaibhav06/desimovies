@@ -12,6 +12,7 @@ import type {
   MovieSummary,
 } from "@/lib/tmdb";
 import { MovieCard, MovieRow } from "@/components/movie-card";
+import { useSmoothScroll } from "@/components/smooth-scroll";
 import { backdropUrl, posterUrl } from "@/lib/media-urls";
 import {
   buildVidyAnimeUrl,
@@ -378,6 +379,7 @@ export default function StreamDashboard({
   const INTRO_POPUP_EXPIRY_KEY = "desi_intro_popup_expiry";
   const router = useRouter();
   const pathname = usePathname();
+  const { scrollToTop } = useSmoothScroll();
   const isWatchRoute = pathname?.startsWith("/watch/") ?? false;
   const isTitleRoute = pathname?.startsWith("/title/") ?? false;
   const [showIntroPopup, setShowIntroPopup] = useState(true);
@@ -1146,7 +1148,7 @@ export default function StreamDashboard({
   function playSports(channel: any) {
     setSelectedSportsChannel(channel);
     setIsPlayerOpen(true);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    scrollToTop();
   }
 
   function enterFullscreen() {
@@ -1224,7 +1226,7 @@ export default function StreamDashboard({
       setAnimeEpisodeCount((movie as any).episodes);
     }
     setDetailMovie(null);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    scrollToTop();
 
     // Resume where the viewer left off (Vidy posts the position to us)
     const stored = readWatchPositions()[
@@ -1712,7 +1714,10 @@ export default function StreamDashboard({
             </div>
           )}
         {isPlayerOpen ? (
-          <div className="fixed inset-0 z-40 flex h-screen w-screen flex-col bg-[#0f0f0f] pt-16 md:pt-20">
+          <div
+            data-lenis-prevent
+            className="fixed inset-0 z-40 flex h-screen w-screen flex-col bg-[#0f0f0f] pt-16 md:pt-20"
+          >
             <div className="relative flex-grow overflow-auto" style={{ WebkitOverflowScrolling: "touch" }}>
               <iframe
                 id="player-iframe"
@@ -2297,7 +2302,10 @@ export default function StreamDashboard({
 
       {/* Search Results Overlay */}
       {searchQuery && (
-        <div className="fixed inset-0 z-[60] overflow-y-auto bg-[#0f0f0f]">
+        <div
+          data-lenis-prevent
+          className="fixed inset-0 z-[60] overflow-y-auto bg-[#0f0f0f]"
+        >
           {/* Search Header */}
           <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] bg-[#0f0f0f]/95 px-6 py-4 backdrop-blur-xl md:px-10 lg:px-14">
             <div className="flex w-full items-center gap-3 sm:w-auto sm:gap-8">
@@ -2388,6 +2396,7 @@ export default function StreamDashboard({
 
           {/* Modal Card */}
           <div
+            data-lenis-prevent
             className="relative z-10 max-h-[92vh] w-full max-w-[860px] overflow-y-auto rounded-2xl border border-white/[0.06] bg-[#181818] shadow-[0_40px_120px_rgba(0,0,0,0.85)]"
             onClick={(e) => e.stopPropagation()}
           >
