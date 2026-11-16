@@ -2,8 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   images: {
-    // The optimizer is deterministic per (url, w, q); make its Cache-Control long.
-    minimumCacheTTL: 604800,
+    // TMDB/anime images are already served at the right size; routing them
+    // through the optimizer burned the Cloudflare Image Transformations quota.
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: "https",
@@ -51,7 +52,7 @@ const nextConfig: NextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://va.vercel-scripts.com",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://va.vercel-scripts.com https://static.cloudflareinsights.com",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: blob: https: https://image.tmdb.org https://assets.fanart.tv https://m.media-amazon.com https://images.unsplash.com https://imgs.search.brave.com https://*.anilist.co",
