@@ -1,12 +1,32 @@
 /**
- * AniList GraphQL API (https://graphql.anilist.co)
+ * Anime catalogue — served from the static build-time snapshot.
  *
- * No API key required. Vidy resolves anime by AniList id
- * (https://www.vidy.st/anime/{anilistId}/{episode}), so our anime
- * catalogue is keyed by AniList id rather than TMDB id.
+ * AniList blocks Cloudflare Workers egress IPs (HTTP 403), so the Worker
+ * cannot call the AniList GraphQL API at request time. `npm run build`
+ * runs `scripts/build-anime.mjs` first, which fetches the popular and
+ * trending lists from the machine running the build and writes
+ * `lib/anime-snapshot.json`. At runtime everything is read from that
+ * snapshot — no network calls at all.
+ *
+ * If the snapshot is empty or a requested id is missing, we fall back to
+ * the live API so local dev / Vercel (which can reach AniList) still get
+ * fresh data. On Cloudflare those calls return 403 and are filtered out.
  */
 
+import snapshot from "./anime-snapshot.json";
+
 const ANILIST_API = "https://graphql.anilist.co";
+const SNAPSHOT_FRESH_MS = 24 * 60 * 60 * 1000;
+
+type AnimeSnapshot = {
+  popular: MediaNode[];
+  trending: MediaNode[];
+  byId: MediaNode[];
+  byIdMap: Record<string, MediaNode>;
+  fetchedAt: number;
+};
+
+const data = snapshot as unknown as AnimeSnapshot;
 
 export type AnimeSummary = {
   id: number;
@@ -34,7 +54,7 @@ export type AnimeDetail = AnimeSummary & {
   previousEpisodeId: number | null;
 };
 
-type MediaNode = {
+export type MediaNode = {
   id: number;
   title?: { romaji?: string | null; english?: string | null; native?: string | null } | null;
   description?: string | null;
@@ -51,28 +71,52 @@ type MediaNode = {
   previousEpisodeId?: number | null;
 };
 
-async function anilistFetch<T>(
-  query: string,
-  variables: Record<string, unknown> = {},
-): Promise<T | null> {
-  try {
-    const response = await fetch(ANILIST_API, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ query, variables }),
-      cache: "no-store",
-      signal: AbortSignal.timeout(12000),
-    });
-    if (!response.ok) return null;
-    const payload = (await response.json()) as { data?: T; errors?: unknown[] };
-    if (!payload?.data) return null;
-    return payload.data;
-  } catch {
-    return null;
-  }
+const MEDIA_FIELDS = `
+  id
+  title { romaji english native }
+  description(asHtml: false)
+  coverImage { large extraLarge }
+  bannerImage
+  episodes
+  format
+  status
+  seasonYear
+  averageScore
+  genres
+  studios { nodes { name } }
+`;
+
+const animeCache = new Map<string, { at: number; data: AnimeSummary[] }>();
+const ANIME_CACHE_TTL_MS = 10 * 60 * 1000;
+
+/** Is the committed snapshot present and not absurdly old? */
+function hasFreshSnapshot(): boolean {
+  return (
+    Array.isArray(data.popular) &&
+    data.popular.length > 0 &&
+    Date.now() - (data.fetchedAt ?? 0) < SNAPSHOT_FRESH_MS * 30
+  );
 }
 
-function toAnimeSummary(media: MediaNode): AnimeSummary {
+function snapshotMedia(kind: "popular" | "trending"): MediaNode[] {
+  const media = data[kind];
+  return Array.isArray(media) ? media : [];
+}
+
+const byIdMap = new Map<number, MediaNode>();
+for (const media of data.byId ?? []) {
+  if (media?.id) byIdMap.set(Number(media.id), media);
+}
+for (const [id, media] of Object.entries(data.byIdMap ?? {})) {
+  const numId = Number(id);
+  if (Number.isFinite(numId) && numId > 0 && media) byIdMap.set(numId, media);
+}
+
+function snapshotById(): Map<number, MediaNode> {
+  return byIdMap;
+}
+
+function toAnimeSummaryFromMedia(media: MediaNode): AnimeSummary {
   const title =
     media.title?.english?.trim() || media.title?.romaji?.trim() || "Untitled";
   const score = media.averageScore ? media.averageScore / 10 : 0;
@@ -95,68 +139,105 @@ function toAnimeSummary(media: MediaNode): AnimeSummary {
   };
 }
 
-const MEDIA_FIELDS = `
-  id
-  title { romaji english native }
-  description(asHtml: false)
-  coverImage { large extraLarge }
-  bannerImage
-  episodes
-  format
-  status
-  seasonYear
-  averageScore
-  genres
-  studios { nodes { name } }
-`;
+function toAnimeDetailFromMedia(media: MediaNode): AnimeDetail {
+  const summary = toAnimeSummaryFromMedia(media);
+  const studios = (media.studios?.nodes ?? [])
+    .map((node) => node?.name)
+    .filter((name): name is string => Boolean(name));
 
-const animeCache = new Map<string, { at: number; data: AnimeSummary[] }>();
-const ANIME_CACHE_TTL_MS = 10 * 60 * 1000;
+  return {
+    ...summary,
+    status: media.status ?? "UNKNOWN",
+    studios,
+    descriptionHtml: media.description ?? null,
+    nextEpisodeId: media.nextEpisodeId ?? null,
+    previousEpisodeId: media.previousEpisodeId ?? null,
+  };
+}
 
-async function cachedAnime(key: string, loader: () => Promise<AnimeSummary[]>): Promise<AnimeSummary[]> {
+async function anilistFetch<T>(
+  query: string,
+  variables: Record<string, unknown> = {},
+): Promise<T | null> {
+  try {
+    const response = await fetch(ANILIST_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ query, variables }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!response.ok) return null;
+    const payload = (await response.json()) as { data?: T; errors?: unknown[] };
+    if (!payload?.data) return null;
+    return payload.data;
+  } catch {
+    /* AniList blocks some origins entirely (e.g. Workers) — snapshot is the source. */
+    return null;
+  }
+}
+
+function cachedList(
+  key: string,
+  loader: () => Promise<AnimeSummary[]>,
+): Promise<AnimeSummary[]> {
   const hit = animeCache.get(key);
-  if (hit && Date.now() - hit.at < ANIME_CACHE_TTL_MS) return hit.data;
-  const data = await loader();
-  if (data.length > 0) animeCache.set(key, { at: Date.now(), data });
-  return data;
+  if (hit && Date.now() - hit.at < ANIME_CACHE_TTL_MS) return Promise.resolve(hit.data);
+  return loader().then((data) => {
+    if (data.length > 0) animeCache.set(key, { at: Date.now(), data });
+    return data;
+  });
+}
+
+async function getPopularAnimeFromSnapshot(perPage: number): Promise<AnimeSummary[]> {
+  return snapshotMedia("popular").slice(0, perPage).map(toAnimeSummaryFromMedia);
+}
+
+async function getTrendingAnimeFromSnapshot(perPage: number): Promise<AnimeSummary[]> {
+  return snapshotMedia("trending").slice(0, perPage).map(toAnimeSummaryFromMedia);
 }
 
 export async function getPopularAnime(perPage = 16): Promise<AnimeSummary[]> {
-  return cachedAnime(`popular:${perPage}`, async () => {
-    const data = await anilistFetch<{ Page: { media: MediaNode[] } }>(
-      `query ($perPage: Int) {
-        Page(perPage: $perPage) {
-          media(sort: POPULARITY_DESC, type: ANIME, isAdult: false) { ${MEDIA_FIELDS} }
-        }
-      }`,
-      { perPage },
-    );
-    return (data?.Page?.media ?? []).map(toAnimeSummary);
+  return cachedList(`popular:${perPage}`, async () => {
+    const snapshotList = await getPopularAnimeFromSnapshot(perPage);
+    if (snapshotList.length) return snapshotList;
+    if (!hasFreshSnapshot()) {
+      const data = await anilistFetch<{ Page: { media: MediaNode[] } }>(
+        `query ($perPage: Int) {
+          Page(perPage: $perPage) {
+            media(sort: POPULARITY_DESC, type: ANIME, isAdult: false) { ${MEDIA_FIELDS} }
+          }
+        }`,
+        { perPage },
+      );
+      return (data?.Page?.media ?? []).map(toAnimeSummaryFromMedia);
+    }
+    return [];
   });
 }
 
 export async function getTrendingAnime(perPage = 16): Promise<AnimeSummary[]> {
-  return cachedAnime(`trending:${perPage}`, async () => {
-    const data = await anilistFetch<{ Page: { media: MediaNode[] } }>(
-      `query ($perPage: Int) {
-        Page(perPage: $perPage) {
-          media(sort: TRENDING_DESC, type: ANIME, isAdult: false) { ${MEDIA_FIELDS} }
-        }
-      }`,
-      { perPage },
-    );
-    return (data?.Page?.media ?? []).map(toAnimeSummary);
+  return cachedList(`trending:${perPage}`, async () => {
+    const snapshotList = await getTrendingAnimeFromSnapshot(perPage);
+    if (snapshotList.length) return snapshotList;
+    if (!hasFreshSnapshot()) {
+      const data = await anilistFetch<{ Page: { media: MediaNode[] } }>(
+        `query ($perPage: Int) {
+          Page(perPage: $perPage) {
+            media(sort: TRENDING_DESC, type: ANIME, isAdult: false) { ${MEDIA_FIELDS} }
+          }
+        }`,
+        { perPage },
+      );
+      return (data?.Page?.media ?? []).map(toAnimeSummaryFromMedia);
+    }
+    return [];
   });
 }
 
-const animeDetailCache = new Map<number, { at: number; data: AnimeDetail | null }>();
-const ANIME_DETAIL_CACHE_TTL_MS = 30 * 60 * 1000;
-
 export async function getAnimeById(anilistId: number): Promise<AnimeDetail | null> {
-  const cached = animeDetailCache.get(anilistId);
-  if (cached && Date.now() - cached.at < ANIME_DETAIL_CACHE_TTL_MS) {
-    return cached.data;
-  }
+  const fromSnapshot = snapshotById().get(anilistId);
+  if (fromSnapshot) return toAnimeDetailFromMedia(fromSnapshot);
 
   const data = await anilistFetch<{ Media: MediaNode }>(
     `query ($id: Int) {
@@ -164,24 +245,8 @@ export async function getAnimeById(anilistId: number): Promise<AnimeDetail | nul
     }`,
     { id: anilistId },
   );
-  if (!data?.Media) {
-    animeDetailCache.set(anilistId, { at: Date.now(), data: null });
-    return null;
-  }
-
-  const summary = toAnimeSummary(data.Media);
-  const detail: AnimeDetail = {
-    ...summary,
-    status: data.Media.status ?? "UNKNOWN",
-    studios: (data.Media.studios?.nodes ?? [])
-      .map((node) => node?.name)
-      .filter((name): name is string => Boolean(name)),
-    descriptionHtml: data.Media.description ?? null,
-    nextEpisodeId: null,
-    previousEpisodeId: null,
-  };
-  animeDetailCache.set(anilistId, { at: Date.now(), data: detail });
-  return detail;
+  if (!data?.Media) return null;
+  return toAnimeDetailFromMedia(data.Media);
 }
 
 /**
@@ -191,6 +256,9 @@ export async function getAnimeById(anilistId: number): Promise<AnimeDetail | nul
 export async function findAnimeInCatalogue(
   anilistId: number,
 ): Promise<AnimeSummary | null> {
+  const fromSnapshot = snapshotById().get(anilistId);
+  if (fromSnapshot) return toAnimeSummaryFromMedia(fromSnapshot);
+
   const lists = await Promise.all([getPopularAnime(40), getTrendingAnime(40)]);
   for (const list of lists) {
     const match = list.find((anime) => anime.anilistId === anilistId);
@@ -206,6 +274,29 @@ export async function searchAnime(
   const trimmed = query.trim();
   if (trimmed.length < 2) return [];
 
+  if (hasFreshSnapshot()) {
+    const needle = trimmed.toLowerCase();
+    const seen = new Set<number>();
+    const matches: AnimeSummary[] = [];
+    for (const kind of ["popular", "trending"] as const) {
+      for (const media of snapshotMedia(kind)) {
+        if (seen.has(media.id)) continue;
+        const title = (
+          media.title?.english?.trim() ||
+          media.title?.romaji?.trim() ||
+          media.title?.native?.trim() ||
+          ""
+        ).toLowerCase();
+        if (title.includes(needle)) {
+          seen.add(media.id);
+          matches.push(toAnimeSummaryFromMedia(media));
+          if (matches.length >= perPage) return matches;
+        }
+      }
+    }
+    return matches;
+  }
+
   const data = await anilistFetch<{ Page: { media: MediaNode[] } }>(
     `query ($search: String, $perPage: Int) {
       Page(perPage: $perPage) {
@@ -214,5 +305,9 @@ export async function searchAnime(
     }`,
     { search: trimmed, perPage },
   );
-  return (data?.Page?.media ?? []).map(toAnimeSummary);
+  return (data?.Page?.media ?? []).map(toAnimeSummaryFromMedia);
+}
+
+export function getAnimeCatalogueSize(): number {
+  return snapshotById().size;
 }

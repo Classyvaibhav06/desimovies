@@ -4,7 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/build-anime.mjs",
     "build": "next build",
+    "build:cf": "npm run prebuild && opennextjs-cloudflare build",
+    "deploy:cf": "npm run build:cf && wrangler deploy",
     "start": "next start",
     "lint": "next lint",
     "build:apk": "powershell -ExecutionPolicy Bypass -File ./apk/build_apk.ps1"
@@ -19,6 +22,7 @@
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "^1.20.17",
     "@types/node": "^22.15.17",
     "@types/react": "^19.1.4",
     "@types/react-dom": "^19.1.4",
