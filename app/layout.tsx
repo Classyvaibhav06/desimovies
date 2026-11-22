@@ -19,6 +19,9 @@ const bodyFont = Inter({
 export const metadata: Metadata = {
   title: "Desi Movies Stream",
   description: "TMDB-powered category-wise movie streaming dashboard",
+  verification: {
+    google: "aKtfnMNC3zaTD7k9hK-o9bzftw_yopmRi-dpsmDq8rQ",
+  },
 };
 
 export default function RootLayout({
