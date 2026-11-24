@@ -20,7 +20,12 @@ export const metadata: Metadata = {
   title: "Desi Movies Stream",
   description: "TMDB-powered category-wise movie streaming dashboard",
   verification: {
-    google: "oorAc53NsjHZ29qHc0zxqc7PSAZcNpuWgapitMBoYjw",
+    // Multiple properties (desimovies.vercel.app + the Worker URL) each get
+    // their own token from Search Console; keep them all so both stay verified.
+    google: [
+      "oorAc53NsjHZ29qHc0zxqc7PSAZcNpuWgapitMBoYjw",
+      "SC_DP1xALR_PKwHtpUHJ3IemdSvaF1ky0OmVyRMa_5w",
+    ],
   },
 };
 
