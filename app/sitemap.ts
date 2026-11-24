@@ -1,8 +1,9 @@
 import type { MetadataRoute } from "next";
 import snapshot from "@/lib/anime-snapshot.json";
 
-// Public-facing host. Override with SITE_URL if the site moves to a custom domain.
-const SITE_URL = (process.env.SITE_URL || "https://desimovies.vercel.app").replace(/\/$/, "");
+// Public-facing host that serves pages directly (no redirect). Set SITE_URL to
+// override if the site later moves to a custom domain.
+const SITE_URL = (process.env.SITE_URL || "https://desimovies.ghoshivaibhav12.workers.dev").replace(/\/$/, "");
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date();
